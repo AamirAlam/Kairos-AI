@@ -1,0 +1,102 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background radial -->
+    <radialGradient id="bg" cx="38%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#13131f"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </radialGradient>
+
+    <!-- Vertical bar: dark indigo bottom → bright indigo/lavender top -->
+    <linearGradient id="vbar" x1="32" y1="80" x2="32" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#312e81"/>
+      <stop offset="60%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#c7d2fe"/>
+    </linearGradient>
+
+    <!-- Upper arm: indigo at junction → emerald at tip (signal in) -->
+    <linearGradient id="upper-arm" x1="32" y1="48" x2="76" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+
+    <!-- Lower arm: indigo at junction → sky at tip (action out) -->
+    <linearGradient id="lower-arm" x1="32" y1="48" x2="76" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+
+    <!-- Center node glow -->
+    <radialGradient id="node-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Soft blur for glow layers -->
+    <filter id="soft-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5"/>
+    </filter>
+    <filter id="tip-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100" height="100" rx="20" fill="url(#bg)"/>
+
+  <!-- Faint chart grid -->
+  <line x1="10" y1="35" x2="90" y2="35" stroke="#ffffff" stroke-width="0.4" stroke-opacity="0.03"/>
+  <line x1="10" y1="50" x2="90" y2="50" stroke="#ffffff" stroke-width="0.4" stroke-opacity="0.03"/>
+  <line x1="10" y1="65" x2="90" y2="65" stroke="#ffffff" stroke-width="0.4" stroke-opacity="0.03"/>
+
+  <!-- Glow halo behind center node -->
+  <circle cx="32" cy="48" r="18" fill="url(#node-glow)"/>
+
+  <!-- ── K Mark ─────────────────────────────────────── -->
+
+  <!-- Vertical bar -->
+  <line x1="32" y1="80" x2="32" y2="20" stroke="url(#vbar)" stroke-width="4.5" stroke-linecap="round"/>
+
+  <!-- Arrowhead at top of vertical bar (the "kairos" moment — upward breakout) -->
+  <polyline points="25.5,31 32,19 38.5,31"
+            fill="none" stroke="#c7d2fe" stroke-width="2.2"
+            stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- Arrow glow layer -->
+  <polyline points="25.5,31 32,19 38.5,31"
+            fill="none" stroke="#818cf8" stroke-width="4"
+            stroke-linejoin="round" stroke-linecap="round"
+            filter="url(#tip-glow)" opacity="0.5"/>
+
+  <!-- Upper arm: junction → upper-right (analyst signal in) -->
+  <path d="M 32 48 C 48 44 60 32 76 18"
+        fill="none" stroke="url(#upper-arm)" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Upper arm — small nodes along path -->
+  <circle cx="52" cy="37" r="2.2" fill="#6ee7b7" opacity="0.75"/>
+  <!-- Upper arm tip node -->
+  <circle cx="76" cy="18" r="4" fill="#059669" opacity="0.25" filter="url(#tip-glow)"/>
+  <circle cx="76" cy="18" r="3.5" fill="#065f46"/>
+  <circle cx="76" cy="18" r="2" fill="#34d399"/>
+
+  <!-- Lower arm: junction → lower-right (action / execution out) -->
+  <path d="M 32 48 C 48 52 60 64 76 80"
+        fill="none" stroke="url(#lower-arm)" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Lower arm — small node -->
+  <circle cx="54" cy="61" r="2.2" fill="#7dd3fc" opacity="0.75"/>
+  <!-- Lower arm tip node -->
+  <circle cx="76" cy="80" r="4" fill="#0369a1" opacity="0.25" filter="url(#tip-glow)"/>
+  <circle cx="76" cy="80" r="3.5" fill="#0c4a6e"/>
+  <circle cx="76" cy="80" r="2" fill="#38bdf8"/>
+
+  <!-- Center junction node (the AI decision brain) -->
+  <!-- Outer glow -->
+  <circle cx="32" cy="48" r="10" fill="#4f46e5" opacity="0.3" filter="url(#soft-glow)"/>
+  <!-- Node body -->
+  <circle cx="32" cy="48" r="7" fill="#1e1b4b"/>
+  <circle cx="32" cy="48" r="5" fill="#3730a3"/>
+  <!-- Node core -->
+  <circle cx="32" cy="48" r="2.8" fill="#a5b4fc"/>
+
+  <!-- Base dot on vertical bar -->
+  <circle cx="32" cy="80" r="2.5" fill="#312e81"/>
+</svg>
