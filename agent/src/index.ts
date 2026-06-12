@@ -30,7 +30,7 @@ async function tick() {
 }
 
 async function pnlSnapshot() {
-  const { bnb: bnbBalance, totalUsd: portfolioUsd } = await getWalletBalance();
+  const { bnb: bnbBalance, totalUsd: portfolioUsd, bnbUsd, tokenUsd, holdings } = await getWalletBalance();
 
   if (agentState.startingUsd === 0) {
     agentState.startingUsd = portfolioUsd;
@@ -50,7 +50,10 @@ async function pnlSnapshot() {
   agentState = { ...agentState, portfolioUsd, bnbBalance, pnlPct, peakUsd, drawdownPct };
 
   insertPnlSnapshot({ timestamp: Date.now(), portfolio_usd: portfolioUsd, pnl_pct: pnlPct, drawdown_pct: drawdownPct });
-  updateAgentState({ status: 'RUNNING', portfolioUsd, startingUsd: agentState.startingUsd, pnlPct, drawdownPct });
+  updateAgentState({
+    status: 'RUNNING', portfolioUsd, bnbUsd, tokenUsd, bnbBalance, holdings,
+    startingUsd: agentState.startingUsd, pnlPct, drawdownPct,
+  });
 
   console.log(`[agent] snapshot: ${bnbBalance.toFixed(4)} BNB | $${portfolioUsd.toFixed(2)} | pnl=${(pnlPct * 100).toFixed(2)}% | dd=${(drawdownPct * 100).toFixed(2)}%`);
 }

@@ -7,6 +7,10 @@ import { getRecentTrades, getPnlHistory, getRecentSignals, getRecentAgentRuns, g
 export type AgentState = {
   status: 'RUNNING' | 'PAUSED' | 'STOPPED';
   portfolioUsd: number;
+  bnbUsd: number;
+  tokenUsd: number;
+  bnbBalance: number;
+  holdings: { symbol: string; amount: number; valueUsd: number }[];
   startingUsd: number;
   pnlPct: number;
   drawdownPct: number;
@@ -16,6 +20,10 @@ export type AgentState = {
 let agentState: AgentState = {
   status: 'STOPPED',
   portfolioUsd: 0,
+  bnbUsd: 0,
+  tokenUsd: 0,
+  bnbBalance: 0,
+  holdings: [],
   startingUsd: 0,
   pnlPct: 0,
   drawdownPct: 0,

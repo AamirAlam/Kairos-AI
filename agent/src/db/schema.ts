@@ -1,12 +1,15 @@
 import { DatabaseSync } from 'node:sqlite';
+import fs from 'fs';
 import path from 'path';
 
-const DB_PATH = path.join(process.cwd(), 'data', 'agent.db');
+// Configurable so prod can point at a persistent disk (e.g. /data/agent.db on EC2/EBS).
+const DB_PATH = process.env.DB_PATH ?? path.join(process.cwd(), 'data', 'agent.db');
 
 let _db: DatabaseSync | null = null;
 
 export function getDb(): DatabaseSync {
   if (!_db) {
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true }); // ensure the dir exists on a fresh box
     _db = new DatabaseSync(DB_PATH);
     migrate(_db);
   }
