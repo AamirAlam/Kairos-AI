@@ -9,6 +9,9 @@
     "build": "tsc",
     "start": "node dist/index.js"
   },
+  "engines": {
+    "node": ">=24"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
