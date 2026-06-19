@@ -67,7 +67,7 @@ export async function runPortfolioManager(
   openPositions: OpenPositionSummary[] = [],
 ): Promise<TradeProposal> {
   const toolHandlers: Record<string, ToolHandler> = {
-    get_recent_trades: async () => getRecentTrades(10),
+    get_recent_trades: async () => await getRecentTrades(10),
     get_swap_quote: async (input) => {
       try {
         return await quoteSwap({

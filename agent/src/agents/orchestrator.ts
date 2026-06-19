@@ -17,7 +17,7 @@ const REQUIRE_HIGH_CONFIDENCE = (process.env.REQUIRE_HIGH_CONFIDENCE ?? 'true') 
 
 // ── Small helpers to keep persistence + broadcast in one place ──────────────
 
-function recordRun(r: {
+async function recordRun(r: {
   action: string;
   token: string;
   marketBrief: MarketBrief | null;
@@ -26,7 +26,7 @@ function recordRun(r: {
   tradeId: number | null;
 }) {
   const ts = Date.now();
-  const id = insertAgentRun({
+  const id = await insertAgentRun({
     timestamp: ts,
     action: r.action,
     token: r.token,
@@ -46,7 +46,7 @@ function recordRun(r: {
   return id;
 }
 
-function recordTradeRow(t: {
+async function recordTradeRow(t: {
   token: string;
   side: 'BUY' | 'SELL';
   amountBnb: number;
@@ -54,7 +54,7 @@ function recordTradeRow(t: {
   marketBrief: MarketBrief | null;
   pmReasoning: string | null;
   riskReasoning: string | null;
-}): number {
+}): Promise<number> {
   return insertTrade({
     timestamp: Date.now(),
     token: t.token,
@@ -115,7 +115,7 @@ async function processExits() {
     console.log(`[orchestrator] EXIT ${reasonText}`);
 
     const signal = `[Exit] ${reasonText}`;
-    const tradeId = recordTradeRow({
+    const tradeId = await recordTradeRow({
       token: pos.token, side: 'SELL', amountBnb: pos.amount_token,
       signal, marketBrief: null, pmReasoning: 'Automated exit (TP/SL/time-stop)',
       riskReasoning: reasonText,
@@ -125,10 +125,10 @@ async function processExits() {
       token: pos.token, side: 'SELL', amountBnb: pos.amount_token, signal,
     });
 
-    updateTradeStatus(tradeId, result.status, result.txHash ?? undefined);
+    await updateTradeStatus(tradeId, result.status, result.txHash ?? undefined);
     recordTrade();
 
-    closePosition(pos.id, {
+    await closePosition(pos.id, {
       closed_at: Date.now(),
       exit_price_usd: exit.currentPrice,
       exit_reason: exit.reason,
@@ -136,7 +136,7 @@ async function processExits() {
       close_trade_id: tradeId,
     });
 
-    recordRun({
+    await recordRun({
       action: exit.reason, token: pos.token, marketBrief: null,
       pmReasoning: 'Automated exit (TP/SL/time-stop)', riskReasoning: reasonText,
       tradeId,
@@ -179,7 +179,7 @@ export async function runOrchestrator(state: {
   broadcast({ type: 'agent', agent: 'analyst', data: marketBrief });
 
   const signalTs = Date.now();
-  insertSignalLog({
+  await insertSignalLog({
     timestamp: signalTs,
     fear_greed: marketBrief.fearGreed,
     funding_rate: marketBrief.fundingRate,
@@ -226,7 +226,7 @@ export async function runOrchestrator(state: {
   if (proposal.action === 'HOLD') {
     console.log('[orchestrator] HOLD — no trade');
     broadcast({ type: 'agent', agent: 'riskOfficer', data: { approved: true, reason: 'HOLD — no trade needed.' } });
-    recordRun({ action: 'HOLD', token: proposal.token || '', marketBrief, pmReasoning: proposal.reasoning, riskReasoning: 'HOLD — no risk check performed.', tradeId: null });
+    await recordRun({ action: 'HOLD', token: proposal.token || '', marketBrief, pmReasoning: proposal.reasoning, riskReasoning: 'HOLD — no risk check performed.', tradeId: null });
     return holdResult('HOLD');
   }
 
@@ -238,15 +238,15 @@ export async function runOrchestrator(state: {
   if (!isTradeable(proposal.token)) {
     const reason = `${proposal.token} is not in the tradeable universe — skipped.`;
     console.log(`[orchestrator] SKIP: ${reason}`);
-    recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
+    await recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
     return holdResult(reason);
   }
 
   // No pyramiding — refuse to add to an existing open position.
-  if (isBuy && getOpenPositionByToken(proposal.token)) {
+  if (isBuy && await getOpenPositionByToken(proposal.token)) {
     const reason = `Already holding ${proposal.token} — no pyramiding.`;
     console.log(`[orchestrator] SKIP: ${reason}`);
-    recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
+    await recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
     return holdResult(reason);
   }
 
@@ -255,7 +255,7 @@ export async function runOrchestrator(state: {
     const gas = checkGasReserve(state.bnbBalance, state.bnbUsd, proposal.amountBnb);
     if (!gas.allowed) {
       console.log(`[orchestrator] SKIP: ${gas.reason}`);
-      recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: gas.reason ?? 'Gas reserve', tradeId: null });
+      await recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: gas.reason ?? 'Gas reserve', tradeId: null });
       return holdResult(gas.reason ?? 'Gas reserve protection');
     }
   }
@@ -264,7 +264,7 @@ export async function runOrchestrator(state: {
   if (isBuy && REQUIRE_HIGH_CONFIDENCE && proposal.confidence !== 'HIGH') {
     const reason = `Confidence ${proposal.confidence} below HIGH threshold — entry skipped.`;
     console.log(`[orchestrator] SKIP: ${reason}`);
-    recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
+    await recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
     return holdResult(reason);
   }
 
@@ -284,7 +284,7 @@ export async function runOrchestrator(state: {
 
   if (!riskDecision.approved || !riskDecision.finalTrade) {
     console.warn('[orchestrator] trade vetoed:', riskDecision.reason);
-    recordRun({ action: 'VETOED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: riskDecision.reason, tradeId: null });
+    await recordRun({ action: 'VETOED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: riskDecision.reason, tradeId: null });
     return { marketBrief, proposal, riskDecision };
   }
 
@@ -300,31 +300,31 @@ export async function runOrchestrator(state: {
     if (!pricing) {
       const reason = `Could not price ${trade.token} for entry — aborting BUY.`;
       console.warn(`[orchestrator] ${reason}`);
-      recordRun({ action: 'SKIPPED', token: trade.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
+      await recordRun({ action: 'SKIPPED', token: trade.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
       return { marketBrief, proposal, riskDecision: { ...riskDecision, reason } };
     }
   }
 
-  const tradeId = recordTradeRow({
+  const tradeId = await recordTradeRow({
     token: trade.token, side, amountBnb: trade.amountBnb, signal: reasoning,
     marketBrief, pmReasoning: proposal.reasoning, riskReasoning: riskDecision.reason,
   });
 
   // For a SELL closing a held position, sell the tracked token amount.
-  const heldPosition = side === 'SELL' ? getOpenPositionByToken(trade.token) : null;
+  const heldPosition = side === 'SELL' ? await getOpenPositionByToken(trade.token) : null;
   const sellAmount = heldPosition ? heldPosition.amount_token : trade.amountBnb;
 
   const result = await executeTrade({
     token: trade.token, side, amountBnb: side === 'SELL' ? sellAmount : trade.amountBnb, signal: reasoning,
   });
 
-  updateTradeStatus(tradeId, result.status, result.txHash ?? undefined);
+  await updateTradeStatus(tradeId, result.status, result.txHash ?? undefined);
   recordTrade();
 
   // Position bookkeeping.
   if (result.status === 'CONFIRMED') {
     if (side === 'BUY' && pricing) {
-      openPosition({
+      await openPosition({
         token: trade.token, bnb_spent: trade.amountBnb, amount_token: pricing.amountToken,
         entry_price_usd: pricing.tokenPriceUsd, opened_at: Date.now(), open_trade_id: tradeId,
       });
@@ -332,7 +332,7 @@ export async function runOrchestrator(state: {
     } else if (side === 'SELL' && heldPosition) {
       const exitPrice = (await entryPricing(trade.token, 0))?.tokenPriceUsd ?? heldPosition.entry_price_usd;
       const pnlPct = (exitPrice - heldPosition.entry_price_usd) / heldPosition.entry_price_usd;
-      closePosition(heldPosition.id, {
+      await closePosition(heldPosition.id, {
         closed_at: Date.now(), exit_price_usd: exitPrice, exit_reason: 'PM_SELL',
         realized_pnl_pct: pnlPct, close_trade_id: tradeId,
       });
@@ -340,7 +340,7 @@ export async function runOrchestrator(state: {
     }
   }
 
-  recordRun({
+  await recordRun({
     action: trade.action, token: trade.token, marketBrief,
     pmReasoning: proposal.reasoning, riskReasoning: riskDecision.reason, tradeId,
   });

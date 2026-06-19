@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+.env
+.env.*
+!deploy/.env.production.example
+*.tsbuildinfo
+.git

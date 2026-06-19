@@ -1,30 +1,21 @@
-import { DatabaseSync } from 'node:sqlite';
-import fs from 'fs';
-import path from 'path';
+import { dbExec, isPg } from './driver';
 
-// Configurable so prod can point at a persistent disk (e.g. /data/agent.db on EC2/EBS).
-const DB_PATH = process.env.DB_PATH ?? path.join(process.cwd(), 'data', 'agent.db');
-
-let _db: DatabaseSync | null = null;
-
-export function getDb(): DatabaseSync {
-  if (!_db) {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true }); // ensure the dir exists on a fresh box
-    _db = new DatabaseSync(DB_PATH);
-    migrate(_db);
-  }
-  return _db;
-}
-
-function migrate(db: DatabaseSync) {
-  db.exec(`
+// Schema is portable except for the auto-increment id type and integer width.
+//   SQLite:   INTEGER PRIMARY KEY AUTOINCREMENT
+//   Postgres: BIGSERIAL PRIMARY KEY  (+ BIGINT for epoch-ms timestamps)
+// CHECK constraints, TEXT, and DOUBLE/REAL all behave the same on both.
+function ddl(): string {
+  const id = isPg ? 'BIGSERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+  const int = isPg ? 'BIGINT' : 'INTEGER';
+  const real = isPg ? 'DOUBLE PRECISION' : 'REAL';
+  return `
     CREATE TABLE IF NOT EXISTS trades (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp       INTEGER NOT NULL,
+      id              ${id},
+      timestamp       ${int} NOT NULL,
       token           TEXT NOT NULL,
       side            TEXT NOT NULL CHECK(side IN ('BUY', 'SELL')),
-      amount_bnb      REAL NOT NULL,
-      price_usd       REAL NOT NULL,
+      amount_bnb      ${real} NOT NULL,
+      price_usd       ${real} NOT NULL,
       tx_hash         TEXT,
       signal          TEXT,
       status          TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'CONFIRMED', 'FAILED')),
@@ -34,56 +25,66 @@ function migrate(db: DatabaseSync) {
     );
 
     CREATE TABLE IF NOT EXISTS pnl_snapshots (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp       INTEGER NOT NULL,
-      portfolio_usd   REAL NOT NULL,
-      pnl_pct         REAL NOT NULL,
-      drawdown_pct    REAL NOT NULL
+      id              ${id},
+      timestamp       ${int} NOT NULL,
+      portfolio_usd   ${real} NOT NULL,
+      pnl_pct         ${real} NOT NULL,
+      drawdown_pct    ${real} NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS signal_log (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp     INTEGER NOT NULL,
-      fear_greed    INTEGER,
-      funding_rate  REAL,
+      id            ${id},
+      timestamp     ${int} NOT NULL,
+      fear_greed    ${int},
+      funding_rate  ${real},
       sentiment     TEXT,
       regime        TEXT NOT NULL,
       action        TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS agent_runs (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp      INTEGER NOT NULL,
+      id             ${id},
+      timestamp      ${int} NOT NULL,
       action         TEXT NOT NULL,
       token          TEXT NOT NULL DEFAULT '',
       analyst_brief  TEXT,
       pm_reasoning   TEXT,
       risk_reasoning TEXT,
-      trade_id       INTEGER REFERENCES trades(id)
+      trade_id       ${int} REFERENCES trades(id)
     );
 
     CREATE TABLE IF NOT EXISTS positions (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      id               ${id},
       token            TEXT NOT NULL,
-      bnb_spent        REAL NOT NULL,
-      amount_token     REAL NOT NULL DEFAULT 0,
-      entry_price_usd  REAL NOT NULL,
-      opened_at        INTEGER NOT NULL,
+      bnb_spent        ${real} NOT NULL,
+      amount_token     ${real} NOT NULL DEFAULT 0,
+      entry_price_usd  ${real} NOT NULL,
+      opened_at        ${int} NOT NULL,
       status           TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'CLOSED')),
-      closed_at        INTEGER,
-      exit_price_usd   REAL,
+      closed_at        ${int},
+      exit_price_usd   ${real},
       exit_reason      TEXT,
-      realized_pnl_pct REAL,
-      open_trade_id    INTEGER REFERENCES trades(id),
-      close_trade_id   INTEGER REFERENCES trades(id)
+      realized_pnl_pct ${real},
+      open_trade_id    ${int} REFERENCES trades(id),
+      close_trade_id   ${int} REFERENCES trades(id)
     );
-  `);
+  `;
+}
 
-  // Non-destructive migrations for existing databases
-  const tradeCols = (db.prepare(`PRAGMA table_info(trades)`).all() as { name: string }[]).map(r => r.name);
-  if (!tradeCols.includes('analyst_brief'))  db.exec(`ALTER TABLE trades ADD COLUMN analyst_brief  TEXT`);
-  if (!tradeCols.includes('pm_reasoning'))   db.exec(`ALTER TABLE trades ADD COLUMN pm_reasoning   TEXT`);
-  if (!tradeCols.includes('risk_reasoning')) db.exec(`ALTER TABLE trades ADD COLUMN risk_reasoning TEXT`);
+let _initialized = false;
+
+export async function initDb(): Promise<void> {
+  if (_initialized) return;
+  await dbExec(ddl());
+
+  // Non-destructive backfill for older local SQLite databases (pre-reasoning cols).
+  if (!isPg) {
+    for (const col of ['analyst_brief', 'pm_reasoning', 'risk_reasoning']) {
+      try { await dbExec(`ALTER TABLE trades ADD COLUMN ${col} TEXT`); } catch { /* already exists */ }
+    }
+  }
+  _initialized = true;
+  console.log(`[db] ready (${isPg ? 'postgres' : 'sqlite'})`);
 }
 
 export type Trade = {

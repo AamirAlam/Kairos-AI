@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import { createServer, updateAgentState } from './api/server';
 import { runOrchestrator } from './agents/orchestrator';
 import { insertPnlSnapshot } from './db/queries';
+import { initDb } from './db/schema';
 import { getWalletBalance } from './execution';
 import { maxSpendableBnb, GAS_RESERVE_USD_VALUE } from './guardrails';
 
@@ -54,7 +55,7 @@ async function pnlSnapshot() {
 
   agentState = { ...agentState, portfolioUsd, bnbBalance, bnbUsd, pnlPct, peakUsd, drawdownPct };
 
-  insertPnlSnapshot({ timestamp: Date.now(), portfolio_usd: portfolioUsd, pnl_pct: pnlPct, drawdown_pct: drawdownPct });
+  await insertPnlSnapshot({ timestamp: Date.now(), portfolio_usd: portfolioUsd, pnl_pct: pnlPct, drawdown_pct: drawdownPct });
   updateAgentState({
     status: 'RUNNING', portfolioUsd, bnbUsd, tokenUsd, bnbBalance, holdings,
     startingUsd: agentState.startingUsd, pnlPct, drawdownPct,
@@ -64,6 +65,7 @@ async function pnlSnapshot() {
 }
 
 async function main() {
+  await initDb();
   createServer(PORT);
   updateAgentState({ status: 'RUNNING' });
   console.log('[agent] starting — 3-agent pipeline, tick every 15 min (LLM pipeline gated to trading windows)');

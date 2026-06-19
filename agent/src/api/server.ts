@@ -55,28 +55,28 @@ export function createServer(port: number) {
     res.json(agentState);
   });
 
-  app.get('/api/trades', (_req, res) => {
-    res.json(getRecentTrades(50));
+  app.get('/api/trades', async (_req, res) => {
+    res.json(await getRecentTrades(50));
   });
 
-  app.get('/api/pnl', (_req, res) => {
-    res.json(getPnlHistory(168));
+  app.get('/api/pnl', async (_req, res) => {
+    res.json(await getPnlHistory(168));
   });
 
-  app.get('/api/signals', (_req, res) => {
-    res.json(getRecentSignals(20));
+  app.get('/api/signals', async (_req, res) => {
+    res.json(await getRecentSignals(20));
   });
 
-  app.get('/api/runs', (_req, res) => {
-    const runs = getRecentAgentRuns(50).map(r => ({
+  app.get('/api/runs', async (_req, res) => {
+    const runs = (await getRecentAgentRuns(50)).map(r => ({
       ...r,
       analyst_brief: r.analyst_brief ? JSON.parse(r.analyst_brief) : null,
     }));
     res.json(runs);
   });
 
-  app.get('/api/positions', (_req, res) => {
-    res.json(getRecentPositions(50));
+  app.get('/api/positions', async (_req, res) => {
+    res.json(await getRecentPositions(50));
   });
 
   const server = http.createServer(app);

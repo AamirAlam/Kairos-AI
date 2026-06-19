@@ -29,7 +29,7 @@ async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
 
 /** Open positions enriched with live price and unrealized PnL. */
 export async function getOpenPositionsWithPnl(): Promise<PositionPnl[]> {
-  const positions = getOpenPositions();
+  const positions = await getOpenPositions();
   if (positions.length === 0) return [];
 
   let prices: Record<string, number> = {};
