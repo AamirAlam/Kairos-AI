@@ -4,6 +4,7 @@ import { createServer, updateAgentState } from './api/server';
 import { runOrchestrator } from './agents/orchestrator';
 import { insertPnlSnapshot } from './db/queries';
 import { getWalletBalance } from './execution';
+import { maxSpendableBnb, GAS_RESERVE_USD_VALUE } from './guardrails';
 
 const PORT = parseInt(process.env.PORT ?? '3001');
 const TRADE_PCT = parseFloat(process.env.TRADE_PCT ?? '0.10'); // 10% of BNB balance per trade
@@ -11,6 +12,7 @@ const TRADE_PCT = parseFloat(process.env.TRADE_PCT ?? '0.10'); // 10% of BNB bal
 let agentState = {
   portfolioUsd: 0,
   bnbBalance: 0,
+  bnbUsd: 0,
   startingUsd: 0,
   peakUsd: 0,
   drawdownPct: 0,
@@ -19,11 +21,14 @@ let agentState = {
 
 async function tick() {
   console.log(`\n[agent] ── tick ${new Date().toISOString()} ──`);
-  const maxTradeBnb = parseFloat((agentState.bnbBalance * TRADE_PCT).toFixed(4));
-  console.log(`[agent] BNB balance: ${agentState.bnbBalance} | max trade (${TRADE_PCT * 100}%): ${maxTradeBnb} BNB`);
+  // Size from 10% of balance, but never spend into the BNB gas reserve.
+  const spendable = maxSpendableBnb(agentState.bnbBalance, agentState.bnbUsd);
+  const maxTradeBnb = parseFloat(Math.min(agentState.bnbBalance * TRADE_PCT, spendable).toFixed(4));
+  console.log(`[agent] BNB balance: ${agentState.bnbBalance} ($${agentState.bnbUsd.toFixed(2)}) | reserve: $${GAS_RESERVE_USD_VALUE.toFixed(2)} | max trade: ${maxTradeBnb} BNB`);
   await runOrchestrator({
     portfolioUsd: agentState.portfolioUsd,
     bnbBalance: agentState.bnbBalance,
+    bnbUsd: agentState.bnbUsd,
     maxTradeBnb,
     drawdownPct: agentState.drawdownPct,
   });
@@ -47,7 +52,7 @@ async function pnlSnapshot() {
     ? (peakUsd - portfolioUsd) / peakUsd
     : 0;
 
-  agentState = { ...agentState, portfolioUsd, bnbBalance, pnlPct, peakUsd, drawdownPct };
+  agentState = { ...agentState, portfolioUsd, bnbBalance, bnbUsd, pnlPct, peakUsd, drawdownPct };
 
   insertPnlSnapshot({ timestamp: Date.now(), portfolio_usd: portfolioUsd, pnl_pct: pnlPct, drawdown_pct: drawdownPct });
   updateAgentState({

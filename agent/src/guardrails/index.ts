@@ -3,6 +3,8 @@ import { AgentState } from '../api/server';
 const DRAWDOWN_CAP = parseFloat(process.env.DRAWDOWN_CAP ?? '0.30');
 const MAX_TRADE_BNB = parseFloat(process.env.MAX_TRADE_SIZE_BNB ?? '0.5');
 const DAILY_LIMIT = parseInt(process.env.DAILY_TRADE_LIMIT ?? '4');
+// BNB is the gas token on BSC — always keep at least this much USD of it unspent.
+const GAS_RESERVE_USD = parseFloat(process.env.GAS_RESERVE_USD ?? '0.10');
 
 // Active trading windows in UTC hours [startHour, endHour). New entries are only
 // opened during these high-liquidity windows. Exits (TP/SL) ignore this gate.
@@ -49,6 +51,35 @@ export function recordTrade() {
 
 export function getDailyTradeCount(): number {
   return dailyTradeCount.get(todayKey()) ?? 0;
+}
+
+// ── Gas reserve (BNB) ────────────────────────────────────────────────────────
+// BNB pays for gas on BSC, so a slice must stay unspent. These helpers convert
+// the USD reserve into BNB using the live BNB price (bnbUsd / bnbBalance).
+
+export const GAS_RESERVE_USD_VALUE = GAS_RESERVE_USD;
+
+function gasReserveBnb(bnbBalance: number, bnbUsd: number): number {
+  if (bnbBalance <= 0 || bnbUsd <= 0) return 0;
+  const bnbPriceUsd = bnbUsd / bnbBalance;
+  return GAS_RESERVE_USD / bnbPriceUsd;
+}
+
+// Max BNB that can be spent on a BUY while preserving the gas reserve.
+export function maxSpendableBnb(bnbBalance: number, bnbUsd: number): number {
+  return Math.max(0, bnbBalance - gasReserveBnb(bnbBalance, bnbUsd));
+}
+
+// Hard gate for a BUY of `spendBnb`. Blocks if BNB is already at/below the
+// reserve, or if the spend would dip below it.
+export function checkGasReserve(bnbBalance: number, bnbUsd: number, spendBnb: number): GuardrailResult {
+  if (bnbUsd <= GAS_RESERVE_USD) {
+    return { allowed: false, reason: `BNB ($${bnbUsd.toFixed(2)}) at/below $${GAS_RESERVE_USD.toFixed(2)} gas reserve — buys paused` };
+  }
+  if (bnbBalance - spendBnb < gasReserveBnb(bnbBalance, bnbUsd)) {
+    return { allowed: false, reason: `Trade would breach the $${GAS_RESERVE_USD.toFixed(2)} BNB gas reserve` };
+  }
+  return { allowed: true };
 }
 
 // Only open NEW entries inside a high-liquidity window. Forced exits bypass this.

@@ -8,7 +8,7 @@ import {
   insertTrade, updateTradeStatus, insertSignalLog, insertAgentRun,
   openPosition, closePosition, getOpenPositionByToken,
 } from '../db/queries';
-import { recordTrade, getDailyTradeCount, checkTradingWindow, isInTradingWindow } from '../guardrails';
+import { recordTrade, getDailyTradeCount, checkTradingWindow, isInTradingWindow, checkGasReserve } from '../guardrails';
 import { getTokenPrices } from '../signals/cmc';
 import { isTradeable } from '../execution/tokens';
 import { broadcast, updateAgentState } from '../api/server';
@@ -148,6 +148,7 @@ async function processExits() {
 export async function runOrchestrator(state: {
   portfolioUsd: number;
   bnbBalance: number;
+  bnbUsd: number;
   maxTradeBnb: number;
   drawdownPct: number;
 }): Promise<AgentRunResult | null> {
@@ -247,6 +248,16 @@ export async function runOrchestrator(state: {
     console.log(`[orchestrator] SKIP: ${reason}`);
     recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
     return holdResult(reason);
+  }
+
+  // Gas-reserve gate — never spend BNB needed for BSC gas (BUYs only; SELLs add BNB).
+  if (isBuy) {
+    const gas = checkGasReserve(state.bnbBalance, state.bnbUsd, proposal.amountBnb);
+    if (!gas.allowed) {
+      console.log(`[orchestrator] SKIP: ${gas.reason}`);
+      recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: gas.reason ?? 'Gas reserve', tradeId: null });
+      return holdResult(gas.reason ?? 'Gas reserve protection');
+    }
   }
 
   // HIGH-confidence gate for new BUYs (exits/SELLs are never gated here).
