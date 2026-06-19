@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# …but keep the production public config (NEXT_PUBLIC_* — non-secret)
+!.env.production
 
 # vercel
 .vercel
