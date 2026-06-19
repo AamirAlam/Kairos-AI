@@ -10,6 +10,7 @@ import {
 } from '../db/queries';
 import { recordTrade, getDailyTradeCount, checkTradingWindow, isInTradingWindow } from '../guardrails';
 import { getTokenPrices } from '../signals/cmc';
+import { isTradeable } from '../execution/tokens';
 import { broadcast, updateAgentState } from '../api/server';
 
 const REQUIRE_HIGH_CONFIDENCE = (process.env.REQUIRE_HIGH_CONFIDENCE ?? 'true') === 'true';
@@ -230,6 +231,15 @@ export async function runOrchestrator(state: {
 
   // ── Pre-execution gates for NEW entries ──────────────────────────────────────
   const isBuy = proposal.action === 'BUY';
+
+  // Tradeable-universe guard — reject tokens with no executable liquidity before
+  // they reach the quote/execution layer (would otherwise throw or 400).
+  if (!isTradeable(proposal.token)) {
+    const reason = `${proposal.token} is not in the tradeable universe — skipped.`;
+    console.log(`[orchestrator] SKIP: ${reason}`);
+    recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
+    return holdResult(reason);
+  }
 
   // No pyramiding — refuse to add to an existing open position.
   if (isBuy && getOpenPositionByToken(proposal.token)) {

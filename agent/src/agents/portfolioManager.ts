@@ -3,16 +3,21 @@ import { runAgent, parseJson, ToolHandler } from './base';
 import { MarketBrief, TradeProposal } from './types';
 import { getRecentTrades } from '../db/queries';
 import { quoteSwap } from '../execution';
+import { TRADEABLE_TOKENS } from '../execution/tokens';
 
 const SYSTEM_PROMPT = `You are a portfolio manager for an autonomous BSC trading agent.
 Given a market brief, your open positions, and portfolio state, decide what single trade to make — or HOLD.
 Be decisive but size conservatively. Prefer tokens with strong signal confluence.
 You MUST call get_recent_trades before deciding, and call get_swap_quote before any BUY or SELL.
 
+Tradeable universe — you may ONLY BUY/SELL tokens from this list (others have no
+executable liquidity and will be rejected): ${TRADEABLE_TOKENS.join(', ')}.
+
 Position discipline:
 - Take-profit and stop-loss are handled automatically — do NOT propose exits just to lock small gains.
 - Only propose a SELL if the thesis has clearly broken (signal reversal), even if TP/SL not yet hit.
 - Do NOT propose a BUY for a token you already hold (no pyramiding). Choose a different token or HOLD.
+- If your top pick is already held, rotate to the next-best tradeable token rather than defaulting to HOLD.
 - Reserve confidence "HIGH" for genuine signal confluence (TA + sentiment + narrative align). Most ticks should be MEDIUM/LOW or HOLD. Only HIGH-confidence BUYs get executed.
 
 Respond ONLY with a JSON object — no markdown, no explanation outside the JSON:

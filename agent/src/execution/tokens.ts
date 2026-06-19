@@ -64,6 +64,22 @@ export const BSC_TOKENS: Record<string, string> = {
   DUSK:   '0xB2BD0749DBE21f623d9BABa856D3B0f0e1BFEc9C',
 };
 
+// Verified-tradeable universe: tokens that are (a) on the competition allowlist,
+// (b) in the address registry above, and (c) confirmed to return live swap quotes
+// via TWAK (deep liquidity, no fee-on-transfer quirks). The agents may ONLY pick
+// from this set — proposing anything else leads to quote failures and forced HOLDs.
+// Note: FLOKI is deliberately excluded — it's a fee-on-transfer token the swap
+// aggregator rejects (400). Re-verify with `--quote-only` before adding more.
+export const TRADEABLE_TOKENS: string[] = [
+  'CAKE', 'PENDLE', 'BONK', 'ETH', 'UNI', 'LINK', 'AAVE',
+  'DOGE', 'ADA', 'DOT', 'AVAX', 'LTC', 'ATOM', 'XRP',
+  'TWT', 'INJ', 'FET', 'SHIB',
+];
+
+export function isTradeable(symbol: string): boolean {
+  return TRADEABLE_TOKENS.includes(symbol.toUpperCase());
+}
+
 export function resolveToken(symbol: string): string {
   const upper = symbol.toUpperCase();
   if (upper === 'BNB') return 'BNB'; // native coin, no address needed

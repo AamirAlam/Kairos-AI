@@ -1,6 +1,7 @@
 import { runAgent, parseJson } from './base';
 import { getCmcMcpTools } from '../signals/cmcMcp';
 import { MarketBrief } from './types';
+import { TRADEABLE_TOKENS } from '../execution/tokens';
 
 const SYSTEM_PROMPT = `You are a professional crypto market analyst specialising in BNB Smart Chain tokens.
 You have access to CoinMarketCap's full data suite — use it thoroughly before concluding.
@@ -40,8 +41,10 @@ export async function runAnalyst(): Promise<MarketBrief> {
     role: 'Analyst',
     systemPrompt: SYSTEM_PROMPT,
     userMessage: `Analyse current BSC market conditions using the CoinMarketCap tools.
-Focus on BSC-native tokens: CAKE, PENDLE, FLOKI, BONK, LISTA, THE, XVS, ALPACA.
-Check technical analysis for at least 3 of these tokens before forming your view.
+You may ONLY surface opportunities from this tradeable universe (these have verified
+on-chain liquidity for execution): ${TRADEABLE_TOKENS.join(', ')}.
+Do NOT name any token outside this list in topOpportunities — it cannot be traded.
+Check technical analysis for at least 4 of these tokens before forming your view.
 Use get_crypto_technical_analysis with interval=daily for each token you analyse.`,
     tools,
     toolHandlers: handlers,
