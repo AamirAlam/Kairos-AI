@@ -111,9 +111,26 @@ async function entryPricing(token: string, bnbSpent: number): Promise<{ tokenPri
   }
 }
 
-// ── PHASE 0: deterministic exit management (runs every tick, ignores window) ──
+// ── PHASE 0: deterministic exit management (LLM-free; runs on the 5-min snapshot
+// and at the start of every 15-min tick). Guarded so the two crons — which fire
+// together at :00/:15/:30/:45 — can never double-sell a position. ──────────────
 
-async function processExits() {
+let exitsRunning = false;
+
+export async function processExits() {
+  if (exitsRunning) {
+    console.log('[orchestrator] exit check already in progress — skipping concurrent run');
+    return;
+  }
+  exitsRunning = true;
+  try {
+    await runExitChecks();
+  } finally {
+    exitsRunning = false;
+  }
+}
+
+async function runExitChecks() {
   let exits;
   try {
     exits = await evaluateExits(Date.now());

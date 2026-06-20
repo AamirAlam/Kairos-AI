@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import cron from 'node-cron';
 import { createServer, updateAgentState, setPositionsPnl } from './api/server';
-import { runOrchestrator } from './agents/orchestrator';
+import { runOrchestrator, processExits } from './agents/orchestrator';
 import { getOpenPositionsWithPnl } from './agents/exitManager';
 import { insertPnlSnapshot, getMeta, setMeta } from './db/queries';
 import { initDb } from './db/schema';
@@ -48,6 +48,11 @@ async function dailyMinCheck() {
 }
 
 async function pnlSnapshot() {
+  // Check TP / SL / trailing / time-stop exits first (LLM-free). Running this on
+  // the 5-min snapshot — not just the 15-min tick — tightens exit latency so a
+  // fast move can't blow through a stop between trade ticks.
+  await processExits();
+
   const { bnb: bnbBalance, totalUsd: portfolioUsd, bnbUsd, tokenUsd, holdings, reliable } = await getWalletBalance();
 
   // If a price/balance fetch failed, the USD total is incomplete (some tokens would
