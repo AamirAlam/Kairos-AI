@@ -59,11 +59,17 @@ function toAmount(raw: bigint): number {
   return Number(raw) / 1e18;
 }
 
+export type HoldingsResult = {
+  holdings: TokenHolding[];
+  missing: string[]; // held tokens we hold a balance of but could NOT price this call
+};
+
 /**
  * Read non-zero BEP-20 balances for `owner` across the token registry and value them.
- * Returns priced holdings (tokens we couldn't price are dropped from the USD total).
+ * Reports any held token we couldn't price in `missing` — the caller decides whether
+ * to trust the total (a priced-as-$0 token would otherwise corrupt net worth/PnL).
  */
-export async function getTokenHoldings(owner: string): Promise<TokenHolding[]> {
+export async function getTokenHoldings(owner: string): Promise<HoldingsResult> {
   const entries = tokenEntries();
 
   const balances = await Promise.all(
@@ -80,7 +86,7 @@ export async function getTokenHoldings(owner: string): Promise<TokenHolding[]> {
     .filter(b => b.raw > 0n)
     .map(b => ({ symbol: b.symbol, amount: toAmount(b.raw) }));
 
-  if (held.length === 0) return [];
+  if (held.length === 0) return { holdings: [], missing: [] };
 
   let priceMap: Record<string, number> = {};
   try {
@@ -88,11 +94,18 @@ export async function getTokenHoldings(owner: string): Promise<TokenHolding[]> {
     priceMap = Object.fromEntries(quotes.map(q => [q.symbol.toUpperCase(), q.price_usd]));
   } catch (err) {
     console.error('[networth] price fetch failed:', err);
+    // priceMap stays empty → every held token reported as missing below
   }
 
-  return held.flatMap(h => {
+  const holdings: TokenHolding[] = [];
+  const missing: string[] = [];
+  for (const h of held) {
     const priceUsd = priceMap[h.symbol.toUpperCase()];
-    if (!priceUsd) return [];
-    return [{ symbol: h.symbol, amount: h.amount, priceUsd, valueUsd: h.amount * priceUsd }];
-  });
+    if (priceUsd && priceUsd > 0) {
+      holdings.push({ symbol: h.symbol, amount: h.amount, priceUsd, valueUsd: h.amount * priceUsd });
+    } else {
+      missing.push(h.symbol); // hold it, but couldn't price it — don't value at $0
+    }
+  }
+  return { holdings, missing };
 }

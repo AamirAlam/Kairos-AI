@@ -50,6 +50,9 @@ export type WalletBalance = {
   bnbUsd: number;
   tokenUsd: number;
   holdings: { symbol: string; amount: number; valueUsd: number }[];
+  // false when a price/balance fetch failed — the USD total is incomplete and
+  // must NOT be persisted as PnL (would otherwise show a fake crash).
+  reliable: boolean;
 };
 
 export async function getWalletBalance(): Promise<WalletBalance> {
@@ -66,19 +69,31 @@ export async function getWalletBalance(): Promise<WalletBalance> {
     // twak only reports native BNB — read BEP-20 holdings on-chain and price them.
     let tokenUsd = 0;
     let holdings: WalletBalance['holdings'] = [];
+    let reliable = true;
     try {
       const address = result.address ?? await getAgentAddress();
-      const tokenHoldings = await getTokenHoldings(address);
-      holdings = tokenHoldings.map(h => ({ symbol: h.symbol, amount: h.amount, valueUsd: h.valueUsd }));
-      tokenUsd = tokenHoldings.reduce((sum, h) => sum + h.valueUsd, 0);
+      const { holdings: th, missing } = await getTokenHoldings(address);
+      holdings = th.map(h => ({ symbol: h.symbol, amount: h.amount, valueUsd: h.valueUsd }));
+      tokenUsd = th.reduce((sum, h) => sum + h.valueUsd, 0);
+      if (missing.length > 0) {
+        reliable = false;
+        console.warn(`[execution] could not price held tokens: ${missing.join(', ')} — marking net worth unreliable`);
+      }
     } catch (err) {
+      reliable = false;
       console.error('[execution] on-chain token holdings failed:', err);
     }
 
-    return { bnb, bnbUsd, tokenUsd, totalUsd: bnbUsd + tokenUsd, holdings };
+    // BNB held but unpriced (twak hiccup) → also unreliable.
+    if (bnb > 0.0001 && bnbUsd <= 0) {
+      reliable = false;
+      console.warn('[execution] BNB balance > 0 but priced at $0 — marking net worth unreliable');
+    }
+
+    return { bnb, bnbUsd, tokenUsd, totalUsd: bnbUsd + tokenUsd, holdings, reliable };
   } catch (err) {
     console.error('[execution] failed to fetch wallet balance:', err);
-    return { bnb: 0, totalUsd: 0, bnbUsd: 0, tokenUsd: 0, holdings: [] };
+    return { bnb: 0, totalUsd: 0, bnbUsd: 0, tokenUsd: 0, holdings: [], reliable: false };
   }
 }
 

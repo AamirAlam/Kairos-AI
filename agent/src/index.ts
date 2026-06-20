@@ -48,7 +48,15 @@ async function dailyMinCheck() {
 }
 
 async function pnlSnapshot() {
-  const { bnb: bnbBalance, totalUsd: portfolioUsd, bnbUsd, tokenUsd, holdings } = await getWalletBalance();
+  const { bnb: bnbBalance, totalUsd: portfolioUsd, bnbUsd, tokenUsd, holdings, reliable } = await getWalletBalance();
+
+  // If a price/balance fetch failed, the USD total is incomplete (some tokens would
+  // read as $0). Skip the snapshot entirely and keep the last good values rather than
+  // recording a fake crash in net worth / PnL.
+  if (!reliable) {
+    console.warn('[agent] snapshot skipped — unreliable wallet valuation (price fetch incomplete)');
+    return;
+  }
 
   // Baseline (cost basis) persists in the DB so restarts/redeploys don't reset PnL,
   // and deposits/withdrawals don't show up as profit. Re-baseline via /api/rebaseline.
