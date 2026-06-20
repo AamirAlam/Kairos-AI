@@ -11,19 +11,21 @@ const exitColor: Record<string, string> = {
   PM_SELL: 'text-sky-400',
 };
 
-function pct(n: number | null) {
-  if (n === null) return '—';
+function pct(n: number | null | undefined) {
+  if (n === null || n === undefined) return '—';
   return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`;
+}
+function pnlClass(n: number | null | undefined) {
+  if (n === null || n === undefined) return 'text-zinc-600';
+  return n >= 0 ? 'text-green-400' : 'text-red-400';
 }
 
 export function Positions({ positions }: Props) {
   const open = positions.filter(p => p.status === 'OPEN');
   const closed = positions.filter(p => p.status === 'CLOSED');
 
-  // Realized PnL roll-up — the "is the bot actually profitable" number.
-  const realized = closed
-    .map(p => p.realized_pnl_pct ?? 0)
-    .reduce((a, b) => a + b, 0);
+  const realized = closed.reduce((a, p) => a + (p.realized_pnl_pct ?? 0), 0);
+  const unrealized = open.reduce((a, p) => a + (p.unrealized_pnl_pct ?? 0), 0);
   const wins = closed.filter(p => (p.realized_pnl_pct ?? 0) > 0).length;
   const winRate = closed.length ? (wins / closed.length) * 100 : 0;
 
@@ -34,10 +36,13 @@ export function Positions({ positions }: Props) {
         <div className="flex items-center gap-4 text-xs font-mono">
           <span className="text-zinc-500">{open.length} open</span>
           <span className="text-zinc-500">
+            unrealized <span className={pnlClass(unrealized)}>{pct(unrealized)}</span>
+          </span>
+          <span className="text-zinc-500">
             win rate <span className="text-zinc-300">{winRate.toFixed(0)}%</span> ({wins}/{closed.length})
           </span>
           <span className="text-zinc-500">
-            realized <span className={realized >= 0 ? 'text-green-400' : 'text-red-400'}>{pct(realized)}</span>
+            realized <span className={pnlClass(realized)}>{pct(realized)}</span>
           </span>
         </div>
       </div>
@@ -53,34 +58,35 @@ export function Positions({ positions }: Props) {
                 <th className="pb-2 pr-4">Status</th>
                 <th className="pb-2 pr-4">BNB In</th>
                 <th className="pb-2 pr-4">Entry</th>
-                <th className="pb-2 pr-4">Exit</th>
+                <th className="pb-2 pr-4">Now / Exit</th>
                 <th className="pb-2 pr-4">PnL</th>
                 <th className="pb-2">Reason</th>
               </tr>
             </thead>
             <tbody>
-              {positions.map(p => (
-                <tr key={p.id} className="border-t border-zinc-800">
-                  <td className="py-1.5 pr-4 text-zinc-200 font-bold">{p.token}</td>
-                  <td className={`py-1.5 pr-4 ${p.status === 'OPEN' ? 'text-indigo-300' : 'text-zinc-500'}`}>
-                    {p.status}
-                  </td>
-                  <td className="py-1.5 pr-4 text-zinc-300">{p.bnb_spent.toFixed(4)}</td>
-                  <td className="py-1.5 pr-4 text-zinc-400">${p.entry_price_usd.toPrecision(4)}</td>
-                  <td className="py-1.5 pr-4 text-zinc-400">
-                    {p.exit_price_usd ? `$${p.exit_price_usd.toPrecision(4)}` : '—'}
-                  </td>
-                  <td className={`py-1.5 pr-4 font-bold ${
-                    p.realized_pnl_pct === null ? 'text-zinc-600'
-                      : p.realized_pnl_pct >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {pct(p.realized_pnl_pct)}
-                  </td>
-                  <td className={`py-1.5 ${exitColor[p.exit_reason ?? ''] ?? 'text-zinc-600'}`}>
-                    {p.exit_reason ?? '—'}
-                  </td>
-                </tr>
-              ))}
+              {positions.map(p => {
+                const isOpen = p.status === 'OPEN';
+                const livePnl = isOpen ? p.unrealized_pnl_pct : p.realized_pnl_pct;
+                const price = isOpen ? p.current_price_usd : p.exit_price_usd;
+                return (
+                  <tr key={p.id} className="border-t border-zinc-800">
+                    <td className="py-1.5 pr-4 text-zinc-200 font-bold">{p.token}</td>
+                    <td className={`py-1.5 pr-4 ${isOpen ? 'text-indigo-300' : 'text-zinc-500'}`}>{p.status}</td>
+                    <td className="py-1.5 pr-4 text-zinc-300">{p.bnb_spent.toFixed(4)}</td>
+                    <td className="py-1.5 pr-4 text-zinc-400">${p.entry_price_usd.toPrecision(4)}</td>
+                    <td className="py-1.5 pr-4 text-zinc-400">{price ? `$${price.toPrecision(4)}` : '—'}</td>
+                    <td className={`py-1.5 pr-4 font-bold ${pnlClass(livePnl)}`}>
+                      {pct(livePnl)}
+                      {isOpen && livePnl !== null && livePnl !== undefined && (
+                        <span className="ml-1 text-[9px] font-normal text-zinc-600">unreal.</span>
+                      )}
+                    </td>
+                    <td className={`py-1.5 ${exitColor[p.exit_reason ?? ''] ?? 'text-zinc-600'}`}>
+                      {p.exit_reason ?? (isOpen ? 'open' : '—')}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

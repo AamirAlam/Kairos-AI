@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import cron from 'node-cron';
-import { createServer, updateAgentState } from './api/server';
+import { createServer, updateAgentState, setPositionsPnl } from './api/server';
 import { runOrchestrator } from './agents/orchestrator';
-import { insertPnlSnapshot } from './db/queries';
+import { getOpenPositionsWithPnl } from './agents/exitManager';
+import { insertPnlSnapshot, getMeta, setMeta } from './db/queries';
 import { initDb } from './db/schema';
 import { getWalletBalance } from './execution';
 import { maxSpendableBnb, GAS_RESERVE_USD_VALUE, getDailyTradeCount } from './guardrails';
@@ -49,28 +50,38 @@ async function dailyMinCheck() {
 async function pnlSnapshot() {
   const { bnb: bnbBalance, totalUsd: portfolioUsd, bnbUsd, tokenUsd, holdings } = await getWalletBalance();
 
-  if (agentState.startingUsd === 0) {
-    agentState.startingUsd = portfolioUsd;
-    agentState.peakUsd = portfolioUsd;
-    console.log(`[agent] starting portfolio value: $${portfolioUsd.toFixed(2)}`);
+  // Baseline (cost basis) persists in the DB so restarts/redeploys don't reset PnL,
+  // and deposits/withdrawals don't show up as profit. Re-baseline via /api/rebaseline.
+  let startingUsd = parseFloat((await getMeta('starting_usd')) ?? '0');
+  if (!startingUsd) {
+    startingUsd = portfolioUsd;
+    await setMeta('starting_usd', String(startingUsd));
+    console.log(`[agent] baseline initialised at $${startingUsd.toFixed(2)}`);
   }
 
-  const pnlPct = agentState.startingUsd > 0
-    ? (portfolioUsd - agentState.startingUsd) / agentState.startingUsd
-    : 0;
+  let peakUsd = Math.max(parseFloat((await getMeta('peak_usd')) ?? '0'), startingUsd, portfolioUsd);
+  await setMeta('peak_usd', String(peakUsd));
 
-  const peakUsd = Math.max(agentState.peakUsd, portfolioUsd);
-  const drawdownPct = peakUsd > 0 && portfolioUsd < peakUsd
-    ? (peakUsd - portfolioUsd) / peakUsd
-    : 0;
+  const pnlPct = startingUsd > 0 ? (portfolioUsd - startingUsd) / startingUsd : 0;
+  const drawdownPct = peakUsd > 0 && portfolioUsd < peakUsd ? (peakUsd - portfolioUsd) / peakUsd : 0;
 
-  agentState = { ...agentState, portfolioUsd, bnbBalance, bnbUsd, pnlPct, peakUsd, drawdownPct };
+  agentState = { ...agentState, portfolioUsd, bnbBalance, bnbUsd, startingUsd, pnlPct, peakUsd, drawdownPct };
 
   await insertPnlSnapshot({ timestamp: Date.now(), portfolio_usd: portfolioUsd, pnl_pct: pnlPct, drawdown_pct: drawdownPct });
   updateAgentState({
     status: 'RUNNING', portfolioUsd, bnbUsd, tokenUsd, bnbBalance, holdings,
     startingUsd: agentState.startingUsd, pnlPct, drawdownPct,
   });
+
+  // Live per-position unrealized PnL (LLM-free — just a price fetch). Cached for /api/positions.
+  try {
+    const open = await getOpenPositionsWithPnl();
+    setPositionsPnl(Object.fromEntries(
+      open.map(o => [o.position.id, { currentPriceUsd: o.currentPrice, unrealizedPnlPct: o.pnlPct }]),
+    ));
+  } catch (err) {
+    console.error('[agent] unrealized PnL update failed:', err);
+  }
 
   console.log(`[agent] snapshot: ${bnbBalance.toFixed(4)} BNB | $${portfolioUsd.toFixed(2)} | pnl=${(pnlPct * 100).toFixed(2)}% | dd=${(drawdownPct * 100).toFixed(2)}%`);
 }
@@ -85,7 +96,7 @@ async function main() {
   await tick();
 
   cron.schedule('*/15 * * * *', () => tick());
-  cron.schedule('0 * * * *', pnlSnapshot);
+  cron.schedule('*/5 * * * *', pnlSnapshot); // portfolio + unrealized PnL refresh (no LLM)
   // Daily-minimum safety: at the cutoff hour, and again 90 min later as a retry.
   cron.schedule(`0 ${DAILY_MIN_CUTOFF_HOUR} * * *`, dailyMinCheck);
   cron.schedule(`30 ${(DAILY_MIN_CUTOFF_HOUR + 1) % 24} * * *`, dailyMinCheck);

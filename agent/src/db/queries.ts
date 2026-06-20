@@ -38,6 +38,24 @@ export async function getPnlHistory(limit = 168): Promise<PnlSnapshot[]> {
   return dbAll<PnlSnapshot>(`SELECT * FROM pnl_snapshots ORDER BY timestamp DESC LIMIT ?`, [limit]);
 }
 
+export async function clearPnlSnapshots(): Promise<void> {
+  await dbRun(`DELETE FROM pnl_snapshots`);
+}
+
+// ── Meta (key/value) — persists the PnL baseline across restarts ─────────────
+
+export async function getMeta(key: string): Promise<string | null> {
+  const row = await dbGet<{ value: string }>(`SELECT value FROM meta WHERE key = ?`, [key]);
+  return row?.value ?? null;
+}
+
+export async function setMeta(key: string, value: string): Promise<void> {
+  await dbRun(
+    `INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+    [key, value],
+  );
+}
+
 export async function insertSignalLog(log: Omit<SignalLog, 'id'>): Promise<void> {
   await dbRun(
     `INSERT INTO signal_log (timestamp, fear_greed, funding_rate, sentiment, regime, action)

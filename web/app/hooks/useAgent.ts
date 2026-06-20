@@ -75,6 +75,8 @@ export type Position = {
   exit_price_usd: number | null;
   exit_reason: string | null;
   realized_pnl_pct: number | null;
+  current_price_usd?: number | null;   // live, OPEN positions only
+  unrealized_pnl_pct?: number | null;  // live, OPEN positions only
 };
 
 export type PipelineStep = 'analyst' | 'portfolioManager' | 'riskOfficer' | null;
@@ -140,7 +142,10 @@ export function useAgent() {
 
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
-      if (msg.type === 'state') setState(msg.data);
+      if (msg.type === 'state') {
+        setState(msg.data);
+        loadPositions(); // 5-min snapshot → refresh live unrealized PnL
+      }
       if (msg.type === 'trade') {
         setTrades(prev => [msg.data, ...prev].slice(0, 50));
         loadPositions(); // a trade opened or closed a position

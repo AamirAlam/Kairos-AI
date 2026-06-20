@@ -69,6 +69,11 @@ function ddl(): string {
       open_trade_id    ${int} REFERENCES trades(id),
       close_trade_id   ${int} REFERENCES trades(id)
     );
+
+    CREATE TABLE IF NOT EXISTS meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
   `;
 }
 
