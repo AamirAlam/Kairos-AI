@@ -17,6 +17,13 @@ const TRAILING_ENABLED      = (process.env.TRAILING_ENABLED ?? 'true') === 'true
 const TRAIL_ACTIVATE_PCT    = parseFloat(process.env.TRAIL_ACTIVATE_PCT ?? '0.04'); // arm at +4%
 const TRAIL_PCT             = parseFloat(process.env.TRAIL_PCT ?? '0.025');          // give back 2.5%
 
+// A single-reading move larger than this (vs the previous reading) is treated as
+// a suspect/bad price tick and not acted on until the next reading confirms it.
+const PRICE_SANITY_MOVE_PCT = parseFloat(process.env.PRICE_SANITY_MOVE_PCT ?? '0.25'); // 25% per ~5 min
+
+// Last seen price per token (in-memory) for the sanity guard above.
+const lastPrice = new Map<string, number>();
+
 export type PositionPnl = {
   position: Position;
   currentPrice: number;
@@ -64,6 +71,19 @@ export async function evaluateExits(now: number): Promise<ExitSignal[]> {
   const exits: ExitSignal[] = [];
   for (const { position, currentPrice, pnlPct } of enriched) {
     const heldHours = (now - position.opened_at) / 3_600_000;
+
+    // Sanity guard: a single implausible price jump (vs the last reading) is more
+    // likely a bad/stale CMC tick than a real move. Skip acting on it this tick —
+    // but update the reference so the NEXT reading confirms. A genuine crash then
+    // triggers one tick (~5 min) later; a glitch never causes a false stop, and a
+    // spurious spike never inflates the trailing-stop peak.
+    const token = position.token.toUpperCase();
+    const last = lastPrice.get(token);
+    lastPrice.set(token, currentPrice);
+    if (last !== undefined && last > 0 && Math.abs(currentPrice - last) / last > PRICE_SANITY_MOVE_PCT) {
+      console.warn(`[positions] ${token} price jumped ${(((currentPrice - last) / last) * 100).toFixed(1)}% since last read ($${last.toPrecision(4)}→$${currentPrice.toPrecision(4)}) — treating as suspect, skipping exit eval this tick`);
+      continue;
+    }
 
     // Ratchet the high-water mark first.
     const peak = Math.max(position.peak_price_usd || position.entry_price_usd, currentPrice);

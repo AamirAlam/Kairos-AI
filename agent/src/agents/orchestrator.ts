@@ -171,11 +171,9 @@ async function runExitChecks() {
       close_trade_id: tradeId,
     });
 
-    await recordRun({
-      action: exit.reason, token: pos.token, marketBrief: null,
-      pmReasoning: 'Automated exit (TP/SL/time-stop)', riskReasoning: reasonText,
-      tradeId,
-    });
+    // NOTE: deterministic exits (TP/SL/trailing/time-stop) are NOT recorded in
+    // agent_runs — that feed is for LLM pipeline decisions only. The exit still
+    // appears in the Trade Log + Positions (with its exit reason).
     broadcastTrade(tradeId, pos.token, 'SELL', pos.amount_token, result.txHash, result.status, signal);
   }
 }

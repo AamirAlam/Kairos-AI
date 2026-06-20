@@ -12,6 +12,7 @@ import { getTokenPrices } from '../signals/cmc';
 
 const RPC_URL = process.env.BSC_RPC_URL ?? 'https://bsc-dataseed1.binance.org';
 const BALANCE_OF_SELECTOR = '0x70a08231'; // balanceOf(address)
+const DECIMALS_SELECTOR   = '0x313ce567'; // decimals()
 
 export type TokenHolding = {
   symbol: string;
@@ -54,9 +55,21 @@ async function balanceOf(token: string, owner: string): Promise<bigint> {
   return BigInt(raw);
 }
 
-function toAmount(raw: bigint): number {
-  // raw / 10^18 with float precision good enough for USD valuation
-  return Number(raw) / 1e18;
+// decimals() — must be read per token, NOT assumed 18. Binance-Peg tokens like
+// DOGE use 8 decimals; assuming 18 values them at ~$0.
+async function decimalsOf(token: string): Promise<number> {
+  try {
+    const raw = await ethCall(token, DECIMALS_SELECTOR);
+    if (!raw || raw === '0x') return 18;
+    const d = Number(BigInt(raw));
+    return d > 0 && d <= 36 ? d : 18;
+  } catch {
+    return 18;
+  }
+}
+
+function toAmount(raw: bigint, decimals: number): number {
+  return Number(raw) / 10 ** decimals;
 }
 
 export type HoldingsResult = {
@@ -75,16 +88,19 @@ export async function getTokenHoldings(owner: string): Promise<HoldingsResult> {
   const balances = await Promise.all(
     entries.map(async e => {
       try {
-        return { symbol: e.symbol, raw: await balanceOf(e.address, owner) };
+        return { symbol: e.symbol, address: e.address, raw: await balanceOf(e.address, owner) };
       } catch {
-        return { symbol: e.symbol, raw: 0n };
+        return { symbol: e.symbol, address: e.address, raw: 0n };
       }
     }),
   );
 
-  const held = balances
-    .filter(b => b.raw > 0n)
-    .map(b => ({ symbol: b.symbol, amount: toAmount(b.raw) }));
+  // Read decimals per held token (NOT assumed 18) so 8-decimal tokens like DOGE
+  // are valued correctly.
+  const heldRaw = balances.filter(b => b.raw > 0n);
+  const held = await Promise.all(
+    heldRaw.map(async b => ({ symbol: b.symbol, amount: toAmount(b.raw, await decimalsOf(b.address)) })),
+  );
 
   if (held.length === 0) return { holdings: [], missing: [] };
 
