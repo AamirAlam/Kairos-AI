@@ -5,6 +5,7 @@ type Props = { positions: Position[] };
 
 const exitColor: Record<string, string> = {
   TAKE_PROFIT: 'text-green-400',
+  TRAILING_STOP: 'text-green-400',
   STOP_LOSS: 'text-red-400',
   TIME_STOP: 'text-yellow-400',
   PM_SELL: 'text-sky-400',

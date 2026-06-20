@@ -11,6 +11,7 @@ const actionColor: Record<string, string> = {
   VETOED: 'text-orange-400 bg-orange-500/10 border-orange-500/30',
   SKIPPED: 'text-zinc-400 bg-zinc-700/30 border-zinc-600',
   TAKE_PROFIT: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+  TRAILING_STOP: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
   STOP_LOSS: 'text-red-400 bg-red-500/10 border-red-500/30',
   TIME_STOP: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
 };

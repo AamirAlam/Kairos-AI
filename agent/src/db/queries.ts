@@ -77,10 +77,15 @@ export async function openPosition(p: {
   open_trade_id: number | null;
 }): Promise<number> {
   return dbInsert(
-    `INSERT INTO positions (token, bnb_spent, amount_token, entry_price_usd, opened_at, status, open_trade_id)
-     VALUES (?, ?, ?, ?, ?, 'OPEN', ?)`,
-    [p.token.toUpperCase(), p.bnb_spent, p.amount_token, p.entry_price_usd, p.opened_at, p.open_trade_id ?? null],
+    `INSERT INTO positions (token, bnb_spent, amount_token, entry_price_usd, peak_price_usd, opened_at, status, open_trade_id)
+     VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?)`,
+    [p.token.toUpperCase(), p.bnb_spent, p.amount_token, p.entry_price_usd, p.entry_price_usd, p.opened_at, p.open_trade_id ?? null],
   );
+}
+
+// Ratchet the high-water mark used by the trailing stop (never decreases).
+export async function updatePositionPeak(id: number, price: number): Promise<void> {
+  await dbRun(`UPDATE positions SET peak_price_usd = ? WHERE id = ? AND ? > peak_price_usd`, [price, id, price]);
 }
 
 export async function closePosition(id: number, c: {

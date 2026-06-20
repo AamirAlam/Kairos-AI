@@ -59,6 +59,7 @@ function ddl(): string {
       bnb_spent        ${real} NOT NULL,
       amount_token     ${real} NOT NULL DEFAULT 0,
       entry_price_usd  ${real} NOT NULL,
+      peak_price_usd   ${real} NOT NULL DEFAULT 0,
       opened_at        ${int} NOT NULL,
       status           TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'CLOSED')),
       closed_at        ${int},
@@ -83,6 +84,15 @@ export async function initDb(): Promise<void> {
       try { await dbExec(`ALTER TABLE trades ADD COLUMN ${col} TEXT`); } catch { /* already exists */ }
     }
   }
+
+  // Additive: trailing-stop peak tracking (works on both backends; idempotent).
+  const realT = isPg ? 'DOUBLE PRECISION' : 'REAL';
+  try {
+    await dbExec(`ALTER TABLE positions ADD COLUMN ${isPg ? 'IF NOT EXISTS ' : ''}peak_price_usd ${realT} NOT NULL DEFAULT 0`);
+  } catch { /* already exists (sqlite) */ }
+  // Seed any existing rows so peak >= entry.
+  await dbExec(`UPDATE positions SET peak_price_usd = entry_price_usd WHERE peak_price_usd = 0 OR peak_price_usd < entry_price_usd`);
+
   _initialized = true;
   console.log(`[db] ready (${isPg ? 'postgres' : 'sqlite'})`);
 }
@@ -137,6 +147,7 @@ export type Position = {
   bnb_spent: number;
   amount_token: number;
   entry_price_usd: number;
+  peak_price_usd: number;
   opened_at: number;
   status: 'OPEN' | 'CLOSED';
   closed_at: number | null;

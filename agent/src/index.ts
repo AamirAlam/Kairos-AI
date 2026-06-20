@@ -5,10 +5,13 @@ import { runOrchestrator } from './agents/orchestrator';
 import { insertPnlSnapshot } from './db/queries';
 import { initDb } from './db/schema';
 import { getWalletBalance } from './execution';
-import { maxSpendableBnb, GAS_RESERVE_USD_VALUE } from './guardrails';
+import { maxSpendableBnb, GAS_RESERVE_USD_VALUE, getDailyTradeCount } from './guardrails';
 
 const PORT = parseInt(process.env.PORT ?? '3001');
 const TRADE_PCT = parseFloat(process.env.TRADE_PCT ?? '0.10'); // 10% of BNB balance per trade
+// Daily-minimum safety: the competition needs ≥1 trade/day. If none by this UTC
+// hour, force a qualifying run (bypasses window + confidence gates).
+const DAILY_MIN_CUTOFF_HOUR = parseInt(process.env.DAILY_MIN_CUTOFF_HOUR ?? '22');
 
 let agentState = {
   portfolioUsd: 0,
@@ -20,8 +23,8 @@ let agentState = {
   pnlPct: 0,
 };
 
-async function tick() {
-  console.log(`\n[agent] ── tick ${new Date().toISOString()} ──`);
+async function tick(force = false) {
+  console.log(`\n[agent] ── tick ${new Date().toISOString()}${force ? ' (forced)' : ''} ──`);
   // Size from 10% of balance, but never spend into the BNB gas reserve.
   const spendable = maxSpendableBnb(agentState.bnbBalance, agentState.bnbUsd);
   const maxTradeBnb = parseFloat(Math.min(agentState.bnbBalance * TRADE_PCT, spendable).toFixed(4));
@@ -32,7 +35,15 @@ async function tick() {
     bnbUsd: agentState.bnbUsd,
     maxTradeBnb,
     drawdownPct: agentState.drawdownPct,
-  });
+  }, { force });
+}
+
+// If no trade has executed this UTC day by the cutoff, force one to satisfy the
+// competition's ≥1-trade-per-day qualification rule.
+async function dailyMinCheck() {
+  if (getDailyTradeCount() > 0) return;
+  console.log('[agent] no trades yet today — forcing a qualifying trade (daily minimum)');
+  await tick(true);
 }
 
 async function pnlSnapshot() {
@@ -73,8 +84,11 @@ async function main() {
   await pnlSnapshot();
   await tick();
 
-  cron.schedule('*/15 * * * *', tick);
+  cron.schedule('*/15 * * * *', () => tick());
   cron.schedule('0 * * * *', pnlSnapshot);
+  // Daily-minimum safety: at the cutoff hour, and again 90 min later as a retry.
+  cron.schedule(`0 ${DAILY_MIN_CUTOFF_HOUR} * * *`, dailyMinCheck);
+  cron.schedule(`30 ${(DAILY_MIN_CUTOFF_HOUR + 1) % 24} * * *`, dailyMinCheck);
 }
 
 main().catch(err => {

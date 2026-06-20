@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL ?? 'http://localhost:3001';
+const AGENT_URL = process.env.NEXT_PUBLIC_AGENT_URL ?? 'https://kairos-ai-production.up.railway.app';
 const WS_URL = AGENT_URL.replace('http', 'ws');
 
 export type AgentState = {
