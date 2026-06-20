@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { Position } from '../hooks/useAgent';
 
 type Props = { positions: Position[] };
@@ -21,8 +22,10 @@ function pnlClass(n: number | null | undefined) {
 }
 
 export function Positions({ positions }: Props) {
+  const [tab, setTab] = useState<'OPEN' | 'CLOSED'>('OPEN');
   const open = positions.filter(p => p.status === 'OPEN');
   const closed = positions.filter(p => p.status === 'CLOSED');
+  const rows = tab === 'OPEN' ? open : closed;
 
   const realized = closed.reduce((a, p) => a + (p.realized_pnl_pct ?? 0), 0);
   const unrealized = open.reduce((a, p) => a + (p.unrealized_pnl_pct ?? 0), 0);
@@ -47,41 +50,58 @@ export function Positions({ positions }: Props) {
         </div>
       </div>
 
-      {positions.length === 0 ? (
-        <div className="flex items-center justify-center h-20 text-zinc-600 text-sm">No positions yet</div>
+      {/* Open / Closed tabs */}
+      <div className="mb-3 inline-flex rounded-lg border border-zinc-800 bg-zinc-950 p-0.5 text-xs font-mono">
+        {(['OPEN', 'CLOSED'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-md px-3 py-1 transition-colors ${
+              tab === t ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {t === 'OPEN' ? 'Open' : 'Closed'}
+            <span className="ml-1.5 text-zinc-600">{t === 'OPEN' ? open.length : closed.length}</span>
+          </button>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="flex items-center justify-center h-20 text-zinc-600 text-sm">
+          No {tab === 'OPEN' ? 'open' : 'closed'} positions
+        </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs font-mono">
+          {/* All columns shown; scrolls horizontally on narrow screens (nowrap cells). */}
+          <table className="w-full text-xs font-mono whitespace-nowrap">
             <thead>
               <tr className="text-zinc-600 text-left">
                 <th className="pb-2 pr-4 font-medium">Token</th>
-                <th className="pb-2 pr-4 font-medium">Status</th>
-                <th className="pb-2 pr-4 font-medium hidden sm:table-cell">BNB In</th>
-                <th className="pb-2 pr-4 font-medium hidden md:table-cell">Entry</th>
-                <th className="pb-2 pr-4 font-medium hidden md:table-cell">Now / Exit</th>
+                <th className="pb-2 pr-4 font-medium">BNB In</th>
+                <th className="pb-2 pr-4 font-medium">Entry</th>
+                <th className="pb-2 pr-4 font-medium">Now / Exit</th>
                 <th className="pb-2 pr-4 font-medium">PnL</th>
-                <th className="pb-2 font-medium hidden sm:table-cell">Reason</th>
+                <th className="pb-2 font-medium">Reason</th>
               </tr>
             </thead>
             <tbody>
-              {positions.map(p => {
+              {rows.map(p => {
                 const isOpen = p.status === 'OPEN';
                 const livePnl = isOpen ? p.unrealized_pnl_pct : p.realized_pnl_pct;
                 const price = isOpen ? p.current_price_usd : p.exit_price_usd;
                 return (
                   <tr key={p.id} className="border-t border-zinc-800">
                     <td className="py-1.5 pr-4 text-zinc-200 font-bold">{p.token}</td>
-                    <td className={`py-1.5 pr-4 ${isOpen ? 'text-indigo-300' : 'text-zinc-500'}`}>{p.status}</td>
-                    <td className="py-1.5 pr-4 text-zinc-300 hidden sm:table-cell">{p.bnb_spent.toFixed(4)}</td>
-                    <td className="py-1.5 pr-4 text-zinc-400 hidden md:table-cell">${p.entry_price_usd.toPrecision(4)}</td>
-                    <td className="py-1.5 pr-4 text-zinc-400 hidden md:table-cell">{price ? `$${price.toPrecision(4)}` : '—'}</td>
+                    <td className="py-1.5 pr-4 text-zinc-300">{p.bnb_spent.toFixed(4)}</td>
+                    <td className="py-1.5 pr-4 text-zinc-400">${p.entry_price_usd.toPrecision(4)}</td>
+                    <td className="py-1.5 pr-4 text-zinc-400">{price ? `$${price.toPrecision(4)}` : '—'}</td>
                     <td className={`py-1.5 pr-4 font-bold ${pnlClass(livePnl)}`}>
                       {pct(livePnl)}
                       {isOpen && livePnl !== null && livePnl !== undefined && (
                         <span className="ml-1 text-[9px] font-normal text-zinc-600">unreal.</span>
                       )}
                     </td>
-                    <td className={`py-1.5 hidden sm:table-cell ${exitColor[p.exit_reason ?? ''] ?? 'text-zinc-600'}`}>
+                    <td className={`py-1.5 ${exitColor[p.exit_reason ?? ''] ?? 'text-zinc-600'}`}>
                       {p.exit_reason ?? (isOpen ? 'open' : '—')}
                     </td>
                   </tr>
