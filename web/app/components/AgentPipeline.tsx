@@ -40,9 +40,9 @@ function AgentCard({
       } ${clickable ? 'cursor-pointer hover:border-indigo-500/40 hover:bg-zinc-800/40' : ''}`}
     >
       <div className="flex items-center gap-2.5 mb-3">
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-base ${active ? 'bg-indigo-500/20' : 'bg-zinc-800'}`}>
-          <span className={active ? 'animate-thinkpulse' : ''}>{icon}</span>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={icon} alt={name} width={36} height={36}
+          className={`h-9 w-9 rounded-lg ${active ? 'ring-2 ring-indigo-500/50 animate-thinkpulse' : ''}`} />
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-none truncate">{name}</p>
           <p className="text-[10px] text-zinc-500 leading-none mt-1">{role}</p>
@@ -107,7 +107,8 @@ function Modal({ title, icon, onClose, children }: { title: string; icon: string
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 flex items-center gap-2.5 border-b border-zinc-800 bg-zinc-900/95 px-5 py-3.5 backdrop-blur">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/20 text-base">{icon}</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={icon} alt={title} width={32} height={32} className="h-8 w-8 rounded-lg" />
           <p className="text-sm font-semibold">{title}</p>
           <button
             onClick={onClose}
@@ -163,7 +164,7 @@ export function AgentPipeline({ latestRun, activeAgent }: Props) {
   // ── Modal full content ──────────────────────────────────────────────────────
   const modalConfig: Record<Stage, { title: string; icon: string; content: React.ReactNode }> = {
     analyst: {
-      title: 'Analyst — Market Brief', icon: '🔬',
+      title: 'Analyst — Market Brief', icon: '/agents/analyst.png',
       content: brief ? (
         <>
           <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
@@ -188,7 +189,7 @@ export function AgentPipeline({ latestRun, activeAgent }: Props) {
       ) : <p className="text-zinc-500">No analysis recorded.</p>,
     },
     portfolioManager: {
-      title: 'Portfolio Manager — Proposal', icon: '📊',
+      title: 'Portfolio Manager — Proposal', icon: '/agents/portfolio-manager.png',
       content: latestRun?.pm_reasoning ? (
         <>
           <span className={`inline-block rounded border px-2 py-0.5 text-xs font-mono font-bold ${actionColor[latestRun.action] ?? 'text-zinc-400 border-zinc-700'}`}>
@@ -199,7 +200,7 @@ export function AgentPipeline({ latestRun, activeAgent }: Props) {
       ) : <p className="text-zinc-500">No proposal recorded.</p>,
     },
     riskOfficer: {
-      title: 'Risk Officer — Decision', icon: '🛡️',
+      title: 'Risk Officer — Decision', icon: '/agents/risk-officer.png',
       content: latestRun?.risk_reasoning ? (
         <>
           <p className="text-zinc-200 whitespace-pre-wrap">{latestRun.risk_reasoning}</p>
@@ -228,19 +229,19 @@ export function AgentPipeline({ latestRun, activeAgent }: Props) {
 
       <div className="flex flex-col lg:flex-row gap-3 lg:gap-0">
         <AgentCard
-          icon="🔬" name="Analyst" role="reads the market (CMC)"
+          icon="/agents/analyst.png" name="Analyst" role="reads the market (CMC)"
           active={stageActive('analyst')} done={!!brief}
           preview={analystPreview} onOpen={() => setOpenStage('analyst')}
         />
         <Connector active={activeIdx >= 1} />
         <AgentCard
-          icon="📊" name="Portfolio Manager" role="decides the trade"
+          icon="/agents/portfolio-manager.png" name="Portfolio Manager" role="decides the trade"
           active={stageActive('portfolioManager')} done={!!latestRun?.pm_reasoning}
           preview={pmPreview} onOpen={() => setOpenStage('portfolioManager')}
         />
         <Connector active={activeIdx >= 2} />
         <AgentCard
-          icon="🛡️" name="Risk Officer" role="approves or vetoes"
+          icon="/agents/risk-officer.png" name="Risk Officer" role="approves or vetoes"
           active={stageActive('riskOfficer')} done={!!latestRun?.risk_reasoning}
           preview={riskPreview} onOpen={() => setOpenStage('riskOfficer')}
         />

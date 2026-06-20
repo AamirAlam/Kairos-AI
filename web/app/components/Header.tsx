@@ -39,16 +39,8 @@ export function Header({ state, connected }: Props) {
     <header className="flex items-center justify-between">
       <div className="flex items-center gap-3">
         {/* Kairos mark */}
-        <svg width="38" height="38" viewBox="0 0 100 100" className="shrink-0">
-          <line x1="32" y1="80" x2="32" y2="20" stroke="#818cf8" strokeWidth="6" strokeLinecap="round" />
-          <polyline points="24,32 32,18 40,32" fill="none" stroke="#c7d2fe" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-          <path d="M 32 48 C 48 44 60 32 76 18" fill="none" stroke="#34d399" strokeWidth="4" strokeLinecap="round" />
-          <path d="M 32 48 C 48 52 60 64 76 80" fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="76" cy="18" r="4.5" fill="#34d399" />
-          <circle cx="76" cy="80" r="4.5" fill="#38bdf8" />
-          <circle cx="32" cy="48" r="7.5" fill="#3730a3" />
-          <circle cx="32" cy="48" r="3" fill="#a5b4fc" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/kairos-icon.png" alt="Kairos" width={38} height={38} className="shrink-0 rounded-[11px]" />
         <div>
           <h1 className="text-lg font-bold tracking-tight leading-none">Kairos</h1>
           <p className="text-[11px] text-zinc-500 leading-none mt-1">Autonomous trading agent · BSC</p>
