@@ -35,25 +35,45 @@ export function Header({ state, connected }: Props) {
   const win = now ? windowStatus(now) : null;
   const running = state?.status === 'RUNNING';
 
-  return (
-    <header className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        {/* Kairos mark */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/kairos-icon.png" alt="Kairos" width={38} height={38} className="shrink-0 rounded-[11px]" />
-        <div>
-          <h1 className="text-lg font-bold tracking-tight leading-none">Kairos</h1>
-          <p className="text-[11px] text-zinc-500 leading-none mt-1">Autonomous trading agent · BSC</p>
-        </div>
+  const statusPill = (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-mono font-semibold border shrink-0 ${
+        connected && running
+          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+          : connected
+            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+            : 'bg-red-500/10 text-red-300 border-red-500/30'
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-red-400'} ${running ? 'animate-thinkpulse' : ''}`} />
+      {connected ? (state?.status ?? 'RUNNING') : 'OFFLINE'}
+    </span>
+  );
 
-        {/* Agent wallet */}
-        <WalletPill address={AGENT_ADDRESS} />
+  return (
+    <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Brand row (status pill rides along on mobile) */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Kairos mark */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/kairos-icon.png" alt="Kairos" width={38} height={38} className="shrink-0 rounded-[11px]" />
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold tracking-tight leading-none">Kairos</h1>
+            <p className="text-[11px] text-zinc-500 leading-none mt-1 truncate">Autonomous trading agent · BSC</p>
+          </div>
+        </div>
+        <div className="sm:hidden">{statusPill}</div>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Trading window badge — hover to see all windows */}
+      {/* Meta cluster — centered under the brand on mobile, right-aligned on desktop */}
+      <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
+        {/* Agent wallet */}
+        <WalletPill address={AGENT_ADDRESS} />
+
+        {/* Trading window badge — hover (desktop) to see all windows */}
         {win && (
-          <div className="relative hidden sm:block group">
+          <div className="relative block group">
             <button
               type="button"
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-mono border cursor-default ${
@@ -98,19 +118,8 @@ export function Header({ state, connected }: Props) {
           {now ? now.toUTCString().slice(17, 25) : '--:--:--'} UTC
         </span>
 
-        {/* Connection / status pill */}
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-mono font-semibold border ${
-            connected && running
-              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-              : connected
-                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                : 'bg-red-500/10 text-red-300 border-red-500/30'
-          }`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-red-400'} ${running ? 'animate-thinkpulse' : ''}`} />
-          {connected ? (state?.status ?? 'RUNNING') : 'OFFLINE'}
-        </span>
+        {/* Connection / status pill — desktop only (mobile shows it in the brand row) */}
+        <span className="hidden sm:inline-flex">{statusPill}</span>
       </div>
     </header>
   );
@@ -129,7 +138,7 @@ function WalletPill({ address }: { address: string }) {
   };
 
   return (
-    <div className="hidden sm:flex items-center gap-1.5 ml-2 rounded-full border border-zinc-700 bg-zinc-800/60 pl-3 pr-1.5 py-1">
+    <div className="flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800/60 pl-3 pr-1.5 py-1">
       <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />
       <span className="text-[10px] uppercase tracking-wider text-zinc-500 shrink-0">Agent Wallet</span>
       <span className="h-3 w-px bg-zinc-700 shrink-0" />

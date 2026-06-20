@@ -31,9 +31,9 @@ export function Positions({ positions }: Props) {
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
         <p className="text-xs text-zinc-500 uppercase tracking-wider">Positions</p>
-        <div className="flex items-center gap-4 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-mono">
           <span className="text-zinc-500">{open.length} open</span>
           <span className="text-zinc-500">
             unrealized <span className={pnlClass(unrealized)}>{pct(unrealized)}</span>
@@ -54,13 +54,13 @@ export function Positions({ positions }: Props) {
           <table className="w-full text-xs font-mono">
             <thead>
               <tr className="text-zinc-600 text-left">
-                <th className="pb-2 pr-4">Token</th>
-                <th className="pb-2 pr-4">Status</th>
-                <th className="pb-2 pr-4">BNB In</th>
-                <th className="pb-2 pr-4">Entry</th>
-                <th className="pb-2 pr-4">Now / Exit</th>
-                <th className="pb-2 pr-4">PnL</th>
-                <th className="pb-2">Reason</th>
+                <th className="pb-2 pr-4 font-medium">Token</th>
+                <th className="pb-2 pr-4 font-medium">Status</th>
+                <th className="pb-2 pr-4 font-medium hidden sm:table-cell">BNB In</th>
+                <th className="pb-2 pr-4 font-medium hidden md:table-cell">Entry</th>
+                <th className="pb-2 pr-4 font-medium hidden md:table-cell">Now / Exit</th>
+                <th className="pb-2 pr-4 font-medium">PnL</th>
+                <th className="pb-2 font-medium hidden sm:table-cell">Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -72,16 +72,16 @@ export function Positions({ positions }: Props) {
                   <tr key={p.id} className="border-t border-zinc-800">
                     <td className="py-1.5 pr-4 text-zinc-200 font-bold">{p.token}</td>
                     <td className={`py-1.5 pr-4 ${isOpen ? 'text-indigo-300' : 'text-zinc-500'}`}>{p.status}</td>
-                    <td className="py-1.5 pr-4 text-zinc-300">{p.bnb_spent.toFixed(4)}</td>
-                    <td className="py-1.5 pr-4 text-zinc-400">${p.entry_price_usd.toPrecision(4)}</td>
-                    <td className="py-1.5 pr-4 text-zinc-400">{price ? `$${price.toPrecision(4)}` : '—'}</td>
+                    <td className="py-1.5 pr-4 text-zinc-300 hidden sm:table-cell">{p.bnb_spent.toFixed(4)}</td>
+                    <td className="py-1.5 pr-4 text-zinc-400 hidden md:table-cell">${p.entry_price_usd.toPrecision(4)}</td>
+                    <td className="py-1.5 pr-4 text-zinc-400 hidden md:table-cell">{price ? `$${price.toPrecision(4)}` : '—'}</td>
                     <td className={`py-1.5 pr-4 font-bold ${pnlClass(livePnl)}`}>
                       {pct(livePnl)}
                       {isOpen && livePnl !== null && livePnl !== undefined && (
                         <span className="ml-1 text-[9px] font-normal text-zinc-600">unreal.</span>
                       )}
                     </td>
-                    <td className={`py-1.5 ${exitColor[p.exit_reason ?? ''] ?? 'text-zinc-600'}`}>
+                    <td className={`py-1.5 hidden sm:table-cell ${exitColor[p.exit_reason ?? ''] ?? 'text-zinc-600'}`}>
                       {p.exit_reason ?? (isOpen ? 'open' : '—')}
                     </td>
                   </tr>

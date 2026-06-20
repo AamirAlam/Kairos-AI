@@ -28,7 +28,7 @@ export default function Dashboard() {
 
         <Positions positions={positions} />
         <AgentRunLog runs={agentRuns} />
-        <TradeLog trades={trades} />
+        <TradeLog trades={trades} runs={agentRuns} />
 
         <footer className="pt-2 pb-6 text-center text-[11px] text-zinc-600 font-mono">
           Kairos · powered by CoinMarketCap Agent Hub + Trust Wallet Agent Kit on BNB Smart Chain

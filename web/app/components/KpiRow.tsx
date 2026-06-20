@@ -43,13 +43,13 @@ export function KpiRow({ state, positions, trades }: Props) {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {/* Net worth */}
       <Card label="Net Worth" accent>
-        <AnimatedNumber value={portfolioUsd} format={fmtUsd} className="text-2xl font-bold font-mono tabular-nums" />
-        <div className="mt-1.5 flex items-center gap-2 text-[11px] font-mono">
+        <AnimatedNumber value={portfolioUsd} format={fmtUsd} className="block text-2xl font-bold font-mono tabular-nums truncate" />
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-mono">
           <span className="inline-flex items-center gap-1 text-amber-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />BNB <AnimatedNumber value={bnbUsd} format={fmtUsd} />
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />BNB <AnimatedNumber value={bnbUsd} format={fmtUsd} />
           </span>
           <span className="inline-flex items-center gap-1 text-sky-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Tokens <AnimatedNumber value={tokenUsd} format={fmtUsd} />
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-400 shrink-0" />Tokens <AnimatedNumber value={tokenUsd} format={fmtUsd} />
           </span>
         </div>
         {/* composition bar */}
