@@ -11,9 +11,12 @@ import {
 import { recordTrade, getDailyTradeCount, checkTradingWindow, isInTradingWindow, checkGasReserve } from '../guardrails';
 import { getTokenPrices } from '../signals/cmc';
 import { isTradeable, TRADEABLE_TOKENS } from '../execution/tokens';
+import { rankTokens } from '../signals/score';
 import { broadcast, updateAgentState } from '../api/server';
 
 const REQUIRE_HIGH_CONFIDENCE = (process.env.REQUIRE_HIGH_CONFIDENCE ?? 'true') === 'true';
+// Deterministic signal scoring feeds the PM a quant ranking as a prior (advisory).
+const SCORING_ENABLED = (process.env.SCORING_ENABLED ?? 'true') === 'true';
 
 // Conviction sizing: size a BUY by the PM's confidence instead of a hard HIGH-only
 // gate. HIGH → full size, MEDIUM → reduced, LOW → skipped (0). When enabled this
@@ -243,10 +246,25 @@ export async function runOrchestrator(state: {
     unrealizedPnlPct: e.pnlPct,
   }));
 
+  // Deterministic signal ranking — grounds the PM's pick in quant signals (advisory).
+  let scoreContext = '';
+  if (SCORING_ENABLED) {
+    try {
+      const ranked = await rankTokens(TRADEABLE_TOKENS); // already sorted best-first
+      const top = ranked.slice(0, 4); // top 4 highest-scoring candidates only
+      scoreContext = top.map(s => `${s.rank}. ${s.symbol} — ${s.reason}${s.eligible ? '' : ''}`).join('\n');
+      const eligible = ranked.filter(s => s.eligible).map(s => s.symbol);
+      console.log(`[orchestrator] signal ranking (eligible: ${eligible.join(', ') || 'none'}):`);
+      top.forEach(s => console.log(`  ${s.rank}. ${s.symbol} ${s.score.toFixed(0)} ${s.eligible ? '✓' : '✗'}`));
+    } catch (err) {
+      console.error('[orchestrator] signal ranking failed (non-fatal):', err);
+    }
+  }
+
   console.log('[orchestrator] → Portfolio Manager');
   let proposal: TradeProposal;
   try {
-    proposal = await runPortfolioManager(marketBrief, state.portfolioUsd, state.bnbBalance, state.maxTradeBnb, openSummaries);
+    proposal = await runPortfolioManager(marketBrief, state.portfolioUsd, state.bnbBalance, state.maxTradeBnb, openSummaries, scoreContext);
   } catch (err) {
     console.error('[orchestrator] Portfolio Manager failed:', err);
     return null;

@@ -65,6 +65,7 @@ export async function runPortfolioManager(
   bnbBalance: number,
   maxTradeBnb: number,
   openPositions: OpenPositionSummary[] = [],
+  scoreContext = '',
 ): Promise<TradeProposal> {
   const toolHandlers: Record<string, ToolHandler> = {
     get_recent_trades: async () => await getRecentTrades(10),
@@ -88,10 +89,14 @@ export async function runPortfolioManager(
       ).join('\n')
     : '- None — all in BNB';
 
+  const scoreBlock = scoreContext
+    ? `\n## Quant Signal Ranking (deterministic — strong prior)\n${scoreContext}\n\nPrefer the highest-ranked ELIGIBLE token. Only deviate (or HOLD) if the brief/news gives a clear reason. Do not BUY tokens marked INELIGIBLE.\n`
+    : '';
+
   const context = `
 ## Market Brief
 ${JSON.stringify(brief, null, 2)}
-
+${scoreBlock}
 ## Open Positions
 ${positionsBlock}
 
