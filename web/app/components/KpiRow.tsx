@@ -1,5 +1,6 @@
 'use client';
 import { AgentState, Position, Trade } from '../hooks/useAgent';
+import { AnimatedNumber } from './AnimatedNumber';
 
 type Props = { state: AgentState | null; positions: Position[]; trades: Trade[] };
 
@@ -10,6 +11,9 @@ function fmtUsd(n: number) {
 }
 function signedPct(n: number) {
   return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`;
+}
+function plainPct(n: number) {
+  return `${(n * 100).toFixed(2)}%`;
 }
 function isToday(ts: number) {
   const d = new Date(ts), n = new Date();
@@ -39,38 +43,36 @@ export function KpiRow({ state, positions, trades }: Props) {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {/* Net worth */}
       <Card label="Net Worth" accent>
-        <div className="text-2xl font-bold font-mono tabular-nums">{fmtUsd(portfolioUsd)}</div>
+        <AnimatedNumber value={portfolioUsd} format={fmtUsd} className="text-2xl font-bold font-mono tabular-nums" />
         <div className="mt-1.5 flex items-center gap-2 text-[11px] font-mono">
           <span className="inline-flex items-center gap-1 text-amber-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />BNB {fmtUsd(bnbUsd)}
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />BNB <AnimatedNumber value={bnbUsd} format={fmtUsd} />
           </span>
           <span className="inline-flex items-center gap-1 text-sky-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Tokens {fmtUsd(tokenUsd)}
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Tokens <AnimatedNumber value={tokenUsd} format={fmtUsd} />
           </span>
         </div>
         {/* composition bar */}
         <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-          <div className="bg-amber-400" style={{ width: `${portfolioUsd ? (bnbUsd / portfolioUsd) * 100 : 0}%` }} />
-          <div className="bg-sky-400" style={{ width: `${portfolioUsd ? (tokenUsd / portfolioUsd) * 100 : 0}%` }} />
+          <div className="bg-amber-400 transition-[width] duration-700 ease-out" style={{ width: `${portfolioUsd ? (bnbUsd / portfolioUsd) * 100 : 0}%` }} />
+          <div className="bg-sky-400 transition-[width] duration-700 ease-out" style={{ width: `${portfolioUsd ? (tokenUsd / portfolioUsd) * 100 : 0}%` }} />
         </div>
       </Card>
 
       {/* Total PnL */}
       <Card label="Total PnL">
-        <div className={`text-2xl font-bold font-mono tabular-nums ${pnlPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {signedPct(pnlPct)}
-        </div>
+        <AnimatedNumber value={pnlPct} format={signedPct}
+          className={`text-2xl font-bold font-mono tabular-nums ${pnlPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
         <div className={`mt-1.5 text-[11px] font-mono ${pnlUsd >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
-          {pnlUsd >= 0 ? '+' : '−'}{fmtUsd(Math.abs(pnlUsd))} since start
+          {pnlUsd >= 0 ? '+' : '−'}<AnimatedNumber value={Math.abs(pnlUsd)} format={fmtUsd} /> since start
         </div>
         <div className="mt-2 text-[10px] text-zinc-600 font-mono">baseline {fmtUsd(startingUsd)}</div>
       </Card>
 
       {/* Realized / win rate */}
       <Card label="Realized PnL">
-        <div className={`text-2xl font-bold font-mono tabular-nums ${realized >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {signedPct(realized)}
-        </div>
+        <AnimatedNumber value={realized} format={signedPct}
+          className={`text-2xl font-bold font-mono tabular-nums ${realized >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
         <div className="mt-1.5 text-[11px] font-mono text-zinc-400">
           win rate <span className="text-zinc-200">{winRate.toFixed(0)}%</span>
           <span className="text-zinc-600"> · {wins}/{closed.length} closed</span>
@@ -80,13 +82,12 @@ export function KpiRow({ state, positions, trades }: Props) {
 
       {/* Drawdown gauge */}
       <Card label="Drawdown">
-        <div className={`text-2xl font-bold font-mono tabular-nums ${ddRatio > 0.66 ? 'text-red-400' : ddRatio > 0.33 ? 'text-amber-400' : 'text-zinc-200'}`}>
-          {(drawdown * 100).toFixed(2)}%
-        </div>
+        <AnimatedNumber value={drawdown} format={plainPct}
+          className={`text-2xl font-bold font-mono tabular-nums ${ddRatio > 0.66 ? 'text-red-400' : ddRatio > 0.33 ? 'text-amber-400' : 'text-zinc-200'}`} />
         <div className="mt-1.5 text-[11px] font-mono text-zinc-500">cap {DRAWDOWN_CAP * 100}% · disqualify gate</div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
           <div
-            className={`h-full ${ddRatio > 0.66 ? 'bg-red-400' : ddRatio > 0.33 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+            className={`h-full transition-[width] duration-700 ease-out ${ddRatio > 0.66 ? 'bg-red-400' : ddRatio > 0.33 ? 'bg-amber-400' : 'bg-emerald-400'}`}
             style={{ width: `${ddRatio * 100}%` }}
           />
         </div>

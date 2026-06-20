@@ -59,18 +59,46 @@ export function Header({ state, connected }: Props) {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Trading window badge */}
+        {/* Trading window badge — hover to see all windows */}
         {win && (
-          <span
-            className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-mono border ${
-              win.open
-                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                : 'bg-zinc-800/60 text-zinc-400 border-zinc-700'
-            }`}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${win.open ? 'bg-emerald-400 animate-thinkpulse' : 'bg-zinc-500'}`} />
-            {win.label}
-          </span>
+          <div className="relative hidden sm:block group">
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-mono border cursor-default ${
+                win.open
+                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                  : 'bg-zinc-800/60 text-zinc-400 border-zinc-700'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${win.open ? 'bg-emerald-400 animate-thinkpulse' : 'bg-zinc-500'}`} />
+              {win.label}
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-60"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+
+            {/* Popover */}
+            <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 mt-2 z-50 w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-xl">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Trading windows (UTC)</p>
+              <ul className="space-y-1.5">
+                {TRADING_WINDOWS.map(([s, e], i) => {
+                  const active = now != null && now.getUTCHours() >= s && now.getUTCHours() < e;
+                  return (
+                    <li key={i} className="flex items-center justify-between text-xs font-mono">
+                      <span className="flex items-center gap-2">
+                        <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                        <span className={active ? 'text-emerald-300' : 'text-zinc-300'}>
+                          {String(s).padStart(2, '0')}:00 – {String(e).padStart(2, '0')}:00
+                        </span>
+                      </span>
+                      {active && <span className="text-[10px] text-emerald-400">live</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-2 pt-2 border-t border-zinc-800 text-[10px] text-zinc-600 leading-snug">
+                New entries open only in these windows. Exits run 24/7.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* UTC clock */}
