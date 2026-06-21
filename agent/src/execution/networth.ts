@@ -72,6 +72,21 @@ function toAmount(raw: bigint, decimals: number): number {
   return Number(raw) / 10 ** decimals;
 }
 
+// Actual on-chain amount of a single token held by `owner` (null if not in the
+// registry or the read fails). Used to size SELLs off the real balance, not the
+// estimated position size (which overshoots and reverts the swap).
+export async function getTokenAmount(symbol: string, owner: string): Promise<number | null> {
+  const address = BSC_TOKENS[symbol.toUpperCase()];
+  if (!address) return null;
+  try {
+    const raw = await balanceOf(address, owner);
+    if (raw <= 0n) return 0;
+    return toAmount(raw, await decimalsOf(address));
+  } catch {
+    return null;
+  }
+}
+
 export type HoldingsResult = {
   holdings: TokenHolding[];
   missing: string[]; // held tokens we hold a balance of but could NOT price this call

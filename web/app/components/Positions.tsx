@@ -75,7 +75,7 @@ export function Positions({ positions }: Props) {
           {/* All columns shown; scrolls horizontally on narrow screens (nowrap cells). */}
           <table className="w-full text-xs font-mono whitespace-nowrap">
             <thead>
-              <tr className="text-zinc-600 text-left">
+              <tr className="text-[11px] uppercase tracking-wider text-zinc-400 text-left">
                 <th className="pb-2 pr-4 font-medium">Token</th>
                 <th className="pb-2 pr-4 font-medium">BNB In</th>
                 <th className="pb-2 pr-4 font-medium">Entry</th>
@@ -98,7 +98,7 @@ export function Positions({ positions }: Props) {
                     <td className={`py-1.5 pr-4 font-bold ${pnlClass(livePnl)}`}>
                       {pct(livePnl)}
                       {isOpen && livePnl !== null && livePnl !== undefined && (
-                        <span className="ml-1 text-[9px] font-normal text-zinc-600">unreal.</span>
+                        <span className="ml-1 text-[10px] font-normal text-zinc-600">unreal.</span>
                       )}
                     </td>
                     <td className={`py-1.5 ${exitColor[p.exit_reason ?? ''] ?? 'text-zinc-600'}`}>

@@ -27,7 +27,7 @@ export function SignalFeed({ signals }: Props) {
               {s.fear_greed !== null && (
                 <span className="text-zinc-400 shrink-0">F&G {s.fear_greed}</span>
               )}
-              <span className="text-zinc-500 truncate">{s.action}</span>
+              <span className="text-zinc-400 truncate">{s.action}</span>
             </div>
           ))}
         </div>

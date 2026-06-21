@@ -3,7 +3,7 @@ import { runPortfolioManager, OpenPositionSummary } from './portfolioManager';
 import { runRiskOfficer } from './riskOfficer';
 import { evaluateExits, getOpenPositionsWithPnl } from './exitManager';
 import { AgentRunResult, MarketBrief, TradeProposal } from './types';
-import { executeTrade } from '../execution';
+import { executeTrade, getSellableAmount } from '../execution';
 import {
   insertTrade, updateTradeStatus, insertSignalLog, insertAgentRun,
   openPosition, closePosition, getOpenPositionByToken, updatePositionSize,
@@ -162,32 +162,41 @@ async function runExitChecks() {
     const reasonText = `${exit.reason} hit on ${pos.token}: ${pnlStr} (entry $${pos.entry_price_usd.toPrecision(4)} → $${exit.currentPrice.toPrecision(4)})`;
     console.log(`[orchestrator] EXIT ${reasonText}`);
 
+    // Sell the REAL on-chain balance, not the estimated position size (which
+    // overshoots and reverts the swap).
+    const sellAmount = await getSellableAmount(pos.token, pos.amount_token);
+
     const signal = `[Exit] ${reasonText}`;
     const tradeId = await recordTradeRow({
-      token: pos.token, side: 'SELL', amountBnb: pos.amount_token,
+      token: pos.token, side: 'SELL', amountBnb: sellAmount,
       signal, marketBrief: null, pmReasoning: 'Automated exit (TP/SL/time-stop)',
       riskReasoning: reasonText,
     });
 
     const result = await executeTrade({
-      token: pos.token, side: 'SELL', amountBnb: pos.amount_token, signal,
+      token: pos.token, side: 'SELL', amountBnb: sellAmount, signal,
     });
 
     await updateTradeStatus(tradeId, result.status, result.txHash ?? undefined);
-    recordTrade();
 
-    await closePosition(pos.id, {
-      closed_at: Date.now(),
-      exit_price_usd: exit.currentPrice,
-      exit_reason: exit.reason,
-      realized_pnl_pct: exit.pnlPct,
-      close_trade_id: tradeId,
-    });
+    // Only count + close the position if the swap actually confirmed. A failed
+    // sell leaves the position OPEN so the next exit check retries it.
+    if (result.status === 'CONFIRMED') {
+      recordTrade();
+      await closePosition(pos.id, {
+        closed_at: Date.now(),
+        exit_price_usd: exit.currentPrice,
+        exit_reason: exit.reason,
+        realized_pnl_pct: exit.pnlPct,
+        close_trade_id: tradeId,
+      });
+    } else {
+      console.warn(`[orchestrator] EXIT sell FAILED for ${pos.token} — position kept OPEN, will retry`);
+    }
 
-    // NOTE: deterministic exits (TP/SL/trailing/time-stop) are NOT recorded in
-    // agent_runs — that feed is for LLM pipeline decisions only. The exit still
-    // appears in the Trade Log + Positions (with its exit reason).
-    broadcastTrade(tradeId, pos.token, 'SELL', pos.amount_token, result.txHash, result.status, signal);
+    // NOTE: deterministic exits are NOT recorded in agent_runs (that feed is for
+    // LLM decisions only). They appear in the Trade Log + Positions.
+    broadcastTrade(tradeId, pos.token, 'SELL', sellAmount, result.txHash, result.status, signal);
   }
 }
 
@@ -435,16 +444,17 @@ export async function runOrchestrator(state: {
     marketBrief, pmReasoning: proposal.reasoning, riskReasoning: riskDecision.reason,
   });
 
-  // For a SELL closing a held position, sell the tracked token amount.
+  // For a SELL closing a held position, sell the REAL on-chain balance (the stored
+  // amount is an estimate that overshoots and reverts the swap).
   const heldPosition = side === 'SELL' ? await getOpenPositionByToken(trade.token) : null;
-  const sellAmount = heldPosition ? heldPosition.amount_token : trade.amountBnb;
+  const sellAmount = heldPosition ? await getSellableAmount(trade.token, heldPosition.amount_token) : trade.amountBnb;
 
   const result = await executeTrade({
     token: trade.token, side, amountBnb: side === 'SELL' ? sellAmount : trade.amountBnb, signal: reasoning,
   });
 
   await updateTradeStatus(tradeId, result.status, result.txHash ?? undefined);
-  recordTrade();
+  if (result.status === 'CONFIRMED') recordTrade();
 
   // Position bookkeeping.
   if (result.status === 'CONFIRMED') {

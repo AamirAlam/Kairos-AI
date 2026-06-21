@@ -92,13 +92,13 @@ export function DecisionChainModal({ run, onClose }: { run: AgentRun | null; onC
                 <p className="text-zinc-300">{brief.summary}</p>
                 {brief.topOpportunities?.length > 0 && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Opportunities</p>
+                    <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-1">Opportunities</p>
                     <ul className="space-y-0.5">{brief.topOpportunities.map((o, i) => <li key={i} className="text-emerald-400/90">+ {o}</li>)}</ul>
                   </div>
                 )}
                 {brief.keyRisks?.length > 0 && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Key Risks</p>
+                    <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-1">Key Risks</p>
                     <ul className="space-y-0.5">{brief.keyRisks.map((r, i) => <li key={i} className="text-red-400/90">− {r}</li>)}</ul>
                   </div>
                 )}

@@ -45,9 +45,9 @@ function AgentCard({
           className={`h-9 w-9 rounded-lg ${active ? 'ring-2 ring-indigo-500/50 animate-thinkpulse' : ''}`} />
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-none truncate">{name}</p>
-          <p className="text-[10px] text-zinc-500 leading-none mt-1">{role}</p>
+          <p className="text-[11px] text-zinc-500 leading-none mt-1">{role}</p>
         </div>
-        <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-mono font-semibold ${
+        <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-mono font-semibold ${
           active ? 'bg-indigo-500/20 text-indigo-300'
             : done ? 'bg-emerald-500/10 text-emerald-400'
               : 'bg-zinc-800 text-zinc-500'
@@ -65,7 +65,7 @@ function AgentCard({
       </div>
 
       {clickable && (
-        <div className="mt-2 flex items-center gap-1 text-[10px] font-mono text-zinc-600 group-hover:text-indigo-400 transition-colors">
+        <div className="mt-2 flex items-center gap-1 text-[11px] font-mono text-zinc-600 group-hover:text-indigo-400 transition-colors">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
           </svg>
@@ -144,21 +144,21 @@ export function AgentPipeline({ latestRun, activeAgent }: Props) {
         <span className="text-zinc-600">·</span>
         <span className="text-zinc-400">F&G {brief.fearGreed} {brief.fearGreedLabel && `(${brief.fearGreedLabel})`}</span>
       </div>
-      <p className="text-zinc-400 line-clamp-2">{brief.summary}</p>
+      <p className="text-zinc-300 line-clamp-2">{brief.summary}</p>
     </div>
   ) : <span className="text-zinc-600">No analysis yet</span>;
 
   const pmPreview = latestRun?.pm_reasoning ? (
     <div className="space-y-1">
-      <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-mono font-bold ${actionColor[latestRun.action] ?? 'text-zinc-400 border-zinc-700'}`}>
+      <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] font-mono font-bold ${actionColor[latestRun.action] ?? 'text-zinc-400 border-zinc-700'}`}>
         {latestRun.action}{latestRun.token ? ` ${latestRun.token}` : ''}
       </span>
-      <p className="text-zinc-400 line-clamp-2">{latestRun.pm_reasoning}</p>
+      <p className="text-zinc-300 line-clamp-2">{latestRun.pm_reasoning}</p>
     </div>
   ) : <span className="text-zinc-600">No proposal yet</span>;
 
   const riskPreview = latestRun?.risk_reasoning
-    ? <p className="text-zinc-400 line-clamp-3">{latestRun.risk_reasoning}</p>
+    ? <p className="text-zinc-300 line-clamp-3">{latestRun.risk_reasoning}</p>
     : <span className="text-zinc-600">No review yet</span>;
 
   // ── Modal full content ──────────────────────────────────────────────────────

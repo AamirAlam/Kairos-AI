@@ -36,7 +36,7 @@ export function AgentRunLog({ runs }: Props) {
         <div className="overflow-y-auto max-h-80 -mx-1 px-1">
           <table className="w-full text-xs font-mono">
             <thead className="sticky top-0 bg-zinc-900">
-              <tr className="text-zinc-600 text-left">
+              <tr className="text-[11px] uppercase tracking-wider text-zinc-400 text-left">
                 <th className="pb-2 pr-4 font-medium">Time</th>
                 <th className="pb-2 pr-4 font-medium">Action</th>
                 <th className="pb-2 pr-4 font-medium">Token</th>

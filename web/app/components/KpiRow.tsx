@@ -66,7 +66,7 @@ export function KpiRow({ state, positions, trades }: Props) {
         <div className={`mt-1.5 text-[11px] font-mono ${pnlUsd >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
           {pnlUsd >= 0 ? '+' : '−'}<AnimatedNumber value={Math.abs(pnlUsd)} format={fmtUsd} /> since start
         </div>
-        <div className="mt-2 text-[10px] text-zinc-600 font-mono">baseline {fmtUsd(startingUsd)}</div>
+        <div className="mt-2 text-[11px] text-zinc-600 font-mono">baseline {fmtUsd(startingUsd)}</div>
       </Card>
 
       {/* Realized / win rate */}
@@ -77,7 +77,7 @@ export function KpiRow({ state, positions, trades }: Props) {
           win rate <span className="text-zinc-200">{winRate.toFixed(0)}%</span>
           <span className="text-zinc-600"> · {wins}/{closed.length} closed</span>
         </div>
-        <div className="mt-2 text-[10px] text-zinc-600 font-mono">{open.length} open position{open.length === 1 ? '' : 's'}</div>
+        <div className="mt-2 text-[11px] text-zinc-600 font-mono">{open.length} open position{open.length === 1 ? '' : 's'}</div>
       </Card>
 
       {/* Drawdown gauge */}
@@ -91,7 +91,7 @@ export function KpiRow({ state, positions, trades }: Props) {
             style={{ width: `${ddRatio * 100}%` }}
           />
         </div>
-        <div className="mt-1.5 text-[10px] text-zinc-600 font-mono">
+        <div className="mt-1.5 text-[11px] text-zinc-600 font-mono">
           {tradesToday >= 1 ? '✓' : '○'} {tradesToday} trade{tradesToday === 1 ? '' : 's'} today (min 1/day)
         </div>
       </Card>
@@ -102,7 +102,7 @@ export function KpiRow({ state, positions, trades }: Props) {
 function Card({ label, children, accent }: { label: string; children: React.ReactNode; accent?: boolean }) {
   return (
     <div className={`rounded-xl border p-4 ${accent ? 'border-indigo-500/30 bg-indigo-500/[0.04]' : 'border-zinc-800 bg-zinc-900'}`}>
-      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">{label}</p>
+      <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">{label}</p>
       {children}
     </div>
   );

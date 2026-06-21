@@ -89,7 +89,7 @@ export function Header({ state, connected }: Props) {
 
             {/* Popover */}
             <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 mt-2 z-50 w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-xl">
-              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Trading windows (UTC)</p>
+              <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Trading windows (UTC)</p>
               <ul className="space-y-1.5">
                 {TRADING_WINDOWS.map(([s, e], i) => {
                   const active = now != null && now.getUTCHours() >= s && now.getUTCHours() < e;
@@ -101,12 +101,12 @@ export function Header({ state, connected }: Props) {
                           {String(s).padStart(2, '0')}:00 – {String(e).padStart(2, '0')}:00
                         </span>
                       </span>
-                      {active && <span className="text-[10px] text-emerald-400">live</span>}
+                      {active && <span className="text-[11px] text-emerald-400">live</span>}
                     </li>
                   );
                 })}
               </ul>
-              <p className="mt-2 pt-2 border-t border-zinc-800 text-[10px] text-zinc-600 leading-snug">
+              <p className="mt-2 pt-2 border-t border-zinc-800 text-[11px] text-zinc-600 leading-snug">
                 New entries open only in these windows. Exits run 24/7.
               </p>
             </div>
@@ -140,7 +140,7 @@ function WalletPill({ address }: { address: string }) {
   return (
     <div className="flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800/60 pl-3 pr-1.5 py-1">
       <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />
-      <span className="text-[10px] uppercase tracking-wider text-zinc-500 shrink-0">Agent Wallet</span>
+      <span className="text-[11px] uppercase tracking-wider text-zinc-500 shrink-0">Agent Wallet</span>
       <span className="h-3 w-px bg-zinc-700 shrink-0" />
       <a
         href={`https://bscscan.com/address/${address}`}

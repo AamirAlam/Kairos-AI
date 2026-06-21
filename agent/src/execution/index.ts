@@ -1,7 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { resolveToken } from './tokens';
-import { getTokenHoldings } from './networth';
+import { getTokenHoldings, getTokenAmount } from './networth';
 
 const execAsync = promisify(exec);
 
@@ -100,6 +100,21 @@ export async function getWalletBalance(): Promise<WalletBalance> {
 // kept for backward compat
 export async function getBnbBalance(): Promise<number> {
   return (await getWalletBalance()).bnb;
+}
+
+// Amount of a token actually sellable right now: the real on-chain balance (which
+// can be slightly below the position's estimated size), minus a tiny haircut to
+// absorb rounding so the swap doesn't revert. Falls back to `estimated` if the
+// on-chain read fails.
+export async function getSellableAmount(symbol: string, estimated: number): Promise<number> {
+  try {
+    const address = await getAgentAddress();
+    const onchain = await getTokenAmount(symbol, address);
+    if (onchain == null || onchain <= 0) return estimated;
+    return Math.min(onchain, estimated) * 0.999;
+  } catch {
+    return estimated;
+  }
 }
 
 export async function getAgentAddress(): Promise<string> {

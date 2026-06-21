@@ -53,7 +53,7 @@ export function TradeLog({ trades, runs }: Props) {
         <div className="overflow-y-auto max-h-80 -mx-1 px-1">
           <table className="w-full text-xs font-mono">
             <thead className="sticky top-0 bg-zinc-900">
-              <tr className="text-zinc-600 text-left">
+              <tr className="text-[11px] uppercase tracking-wider text-zinc-400 text-left">
                 <th className="pb-2 pr-4 font-medium">Time</th>
                 <th className="pb-2 pr-4 font-medium">Side</th>
                 <th className="pb-2 pr-4 font-medium">Token</th>
@@ -81,7 +81,7 @@ export function TradeLog({ trades, runs }: Props) {
                   <td className="py-2 pr-4 text-zinc-200 font-semibold">{t.token}</td>
                   <td className="py-2 pr-4 text-zinc-300 tabular-nums">{t.amount_bnb.toFixed(4)}</td>
                   <td className="py-2 pr-4">
-                    <span className={`rounded border px-1.5 py-0.5 text-[10px] ${statusBadge[t.status] ?? 'text-zinc-400 border-zinc-700'}`}>
+                    <span className={`rounded border px-1.5 py-0.5 text-[11px] ${statusBadge[t.status] ?? 'text-zinc-400 border-zinc-700'}`}>
                       {t.status}
                     </span>
                   </td>
