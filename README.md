@@ -10,6 +10,8 @@ the Trust Wallet Agent Kit — hands-off, inside hard risk limits, with a live d
 
 **Agent wallet (on-chain proof):** [`0x644ae63803121De0fF3628db0B3f588E65759a1d`](https://bscscan.com/address/0x644ae63803121De0fF3628db0B3f588E65759a1d)
 
+**Project Demo:** https://youtu.be/76N4yp9Q0z0
+
 ---
 
 ## Stack
