@@ -1,10 +1,14 @@
-# BNB AI Trading Agent
+# Kairos — Autonomous AI Trading Agent on BNB Smart Chain
 
-Autonomous trading agent built for the **BNB Hack: AI Trading Agent Edition** hackathon.
+> **See the moment. Seize it.**
 
-Three specialised Claude agents — Analyst, Portfolio Manager, Risk Officer — collaborate every 5 minutes to read CMC signals, form a trading thesis, and execute self-custodial trades on BSC via Trust Wallet Agent Kit.
+Autonomous, self-custody trading agent built for **BNB Hack: AI Trading Agent Edition**.
 
-**Agent wallet:** `0x644ae63803121De0fF3628db0B3f588E65759a1d`
+A three-agent Claude pipeline reads CoinMarketCap data, grounds its pick in a
+deterministic signal-scoring layer, and signs its own trades on BNB Smart Chain via
+the Trust Wallet Agent Kit — hands-off, inside hard risk limits, with a live dashboard.
+
+**Agent wallet (on-chain proof):** [`0x644ae63803121De0fF3628db0B3f588E65759a1d`](https://bscscan.com/address/0x644ae63803121De0fF3628db0B3f588E65759a1d)
 
 ---
 
@@ -12,183 +16,155 @@ Three specialised Claude agents — Analyst, Portfolio Manager, Risk Officer —
 
 | Layer | Technology |
 |---|---|
-| AI brain | Claude (Anthropic SDK) — 3 role-based agents |
-| Signals | CoinMarketCap Agent Hub — Fear & Greed, funding rates, KOL sentiment |
-| Execution | Trust Wallet Agent Kit CLI — local signing, keys never leave device |
-| Chain | BNB Smart Chain (BSC) via PancakeSwap |
-| Agent runtime | Node.js + TypeScript on VPS |
-| Database | SQLite via `node:sqlite` (built into Node 24) |
-| Dashboard | Next.js + Tailwind + Recharts, deployed on Vercel |
+| AI reasoning | Claude (Anthropic SDK) — 3 role-based agents, raw tool-use loop, prompt caching |
+| Market data | CoinMarketCap **Agent Hub via MCP** (12 tools: TA, derivatives, F&G, narratives, news, macro) |
+| Execution | **Trust Wallet Agent Kit** (`twak`) — self-custody local signing on BSC |
+| Chain | BNB Smart Chain |
+| Runtime | Node.js 24 + TypeScript |
+| Database | **PostgreSQL** in prod / `node:sqlite` for local dev (dual-driver, `DATABASE_URL` switch) |
+| Deploy | Docker on **Railway** (agent) + **Vercel** (dashboard) |
+| Dashboard | Next.js + Tailwind + Recharts, live over WebSocket |
 
 ---
 
-## Multi-agent architecture
+## How it works
 
-Three agents run in a sequential pipeline every 5 minutes. Each has a narrow role, specific tools, and produces a structured output that feeds the next agent.
+The agent runs two independent loops:
+
+- **Exit + portfolio loop — every 5 min, LLM-free.** Checks take-profit / stop-loss /
+  trailing-stop / time-stop on open positions, refreshes net worth and unrealized PnL.
+- **Decision loop — every 15 min, inside trading windows.** Runs the deterministic
+  scorer + the 3-agent LLM pipeline to open/close positions.
 
 ```
-Every 5 min:
+EXIT LOOP (every 5 min, no LLM, 24/7)
+  evaluate TP / SL / trailing / time-stop  ──►  TWAK sell if triggered
 
-  ┌──────────────────────────────────────────────────────────────────────┐
-  │  ORCHESTRATOR  (src/agents/orchestrator.ts)                          │
-  │  Gathers shared context → chains 3 agents → executes approved trade  │
-  └───────────────────────────────┬──────────────────────────────────────┘
-                                  │
-               ┌──────────────────▼──────────────────┐
-               │         AGENT 1: ANALYST             │
-               │         src/agents/analyst.ts        │
-               │                                      │
-               │  Role: read and interpret the market │
-               │                                      │
-               │  Tools:                              │
-               │    get_fear_greed()                  │
-               │    get_funding_rates()               │
-               │    get_sentiment()                   │
-               │    get_token_price()                 │
-               │                                      │
-               │  Output → MarketBrief                │
-               │    { regime, signals,                │
-               │      opportunities, risks }          │
-               └──────────────────┬──────────────────┘
-                                  │ MarketBrief
-               ┌──────────────────▼──────────────────┐
-               │     AGENT 2: PORTFOLIO MANAGER       │
-               │     src/agents/portfolioManager.ts   │
-               │                                      │
-               │  Role: decide what trade to make     │
-               │                                      │
-               │  Context in: MarketBrief +           │
-               │    current holdings + recent trades  │
-               │                                      │
-               │  Tools:                              │
-               │    get_portfolio()                   │
-               │    get_recent_trades()               │
-               │    get_swap_quote()                  │
-               │                                      │
-               │  Output → TradeProposal              │
-               │    { action, token, amountBnb,       │
-               │      reasoning, confidence }         │
-               └──────────────────┬──────────────────┘
-                                  │ TradeProposal
-               ┌──────────────────▼──────────────────┐
-               │       AGENT 3: RISK OFFICER          │
-               │       src/agents/riskOfficer.ts      │
-               │                                      │
-               │  Role: adversarial check — veto or   │
-               │    resize any trade that breaks rules │
-               │                                      │
-               │  Tools: none (pure reasoning)        │
-               │                                      │
-               │  Rules injected as context:          │
-               │    • drawdown cap 30% (DQ gate)      │
-               │    • max trade size                  │
-               │    • daily trade limit               │
-               │    • token allowlist (149 tokens)    │
-               │                                      │
-               │  Output → RiskDecision               │
-               │    { approved, finalTrade, reason }  │
-               └──────────────────┬──────────────────┘
-                                  │ approved trade
-               ┌──────────────────▼──────────────────┐
-               │         TWAK EXECUTOR                │
-               │         src/execution/               │
-               │                                      │
-               │  twak swap BNB → TOKEN --chain bsc   │
-               │    • signs locally (on-device)       │
-               │    • submits tx to BSC               │
-               │    • returns tx hash                 │
-               └──────────────────┬──────────────────┘
-                                  │ tx hash + reasoning
-               ┌──────────────────▼──────────────────┐
-               │  SQLite + WebSocket broadcast        │
-               │  Dashboard shows all 3 agents'       │
-               │  reasoning in real time              │
-               └─────────────────────────────────────┘
+DECISION LOOP (every 15 min, only in trading windows)
+
+  1. SIGNAL SCORING  (deterministic)
+     rank tradeable tokens by momentum + relative strength + volume → top 4
+
+  2. ANALYST          reads market via CMC MCP → MarketBrief (regime, F&G, opportunities, risks)
+        │
+  3. PORTFOLIO MGR    brief + ranked prior + open positions → BUY / SELL / HOLD + confidence
+        │
+  4. RISK OFFICER     adversarial check → approve / resize / veto
+        │
+  5. PRE-EXEC GATES   tradeable allowlist · HIGH-confidence only · position cap (8) ·
+                      gas reserve · trading window · price-sanity
+        │
+  6. TWAK EXECUTOR    signs locally, submits to BSC, returns tx hash
+        │
+  7. PERSIST + BROADCAST   Postgres + WebSocket → dashboard updates live
 ```
+
+### Deterministic signal scoring (grounds the pick)
+Before the LLM runs, a pure scoring function ranks the tradeable universe by
+cross-sectional **momentum (24h + 1h)** and **volume**, producing a reproducible
+0–100 score with eligibility gates (rejects downtrends and weak setups). The
+Portfolio Manager receives the **top 4** as a strong prior — so the quant layer
+chooses candidates and the LLM is the context-aware veto/selector on top, not the
+unreliable sole source of alpha. Reproducible and backtestable.
+
+### Deterministic risk layer (independent of the LLM)
+Capital protection never relies on model judgment:
+
+- **Stop-loss** −3.5% from entry · **Trailing stop** arms at +3%, trails 2% below peak
+  (lets winners run, locks gains) · **Time-stop** 48h
+- **Drawdown gate** — hard stop under the competition's 30% disqualify cap
+- **Gas reserve** — never spends the BNB needed for BSC gas
+- **Max open positions** (8) · **HIGH-confidence-only entries** · **no pyramiding**
+  (except controlled top-ups of undersized positions) · **dust cleanup**
+- **Tradeable allowlist** — only competition-eligible tokens with verified liquidity
+- **Price-sanity guard** — ignores anomalous single-tick prices to avoid false stops
+- **Daily-minimum safety** — guarantees the competition's ≥1-trade/day rule
+- Position state changes **only on a confirmed swap** — a failed tx never desyncs the DB
+
+### Self-custody execution (TWAK)
+Trust Wallet Agent Kit is the **sole execution layer** — no custodial hop. The agent
+signs every transaction on-device, registered itself on-chain via `twak compete register`,
+and trades fully autonomously. Net worth is read directly on-chain (decimals-aware) and
+priced via CMC.
 
 ---
 
-## Data flow: one full trade cycle
+## Dashboard
 
-```
-[1] ANALYST      CMC tools  ──► F&G=15, Funding=-0.04%, regime=BEAR
-                                 "Extreme fear. Funding negative — longs
-                                  paying shorts. Bearish signal on CAKE
-                                  but social diverging from price."
+Live over WebSocket (`web/`, deployed on Vercel):
 
-[2] PORT. MGR    Quote tool ──► "F&G at extremes historically mean-reverts.
-                                  Getting quote for small CAKE long."
-                                  quote: 0.3% impact → "Acceptable. BUY 0.1 BNB."
-
-[3] RISK OFFICER (no tools) ──► "Drawdown 4% — well within 30% cap.
-                                  Size 0.1 BNB within daily limit.
-                                  CAKE on allowlist. Approved."
-
-[4] LOG          SQLite     ──► trades(status=PENDING) + reasoning stored
-
-[5] SIGN+SEND    TWAK CLI   ──► twak swap 0.1 BNB CAKE --chain bsc
-                                  keys stay local, signed on-device
-                                  tx submitted to BSC RPC
-
-[6] CONFIRM      BSC        ──► tx hash returned, status=CONFIRMED
-
-[7] UPDATE       SQLite     ──► trades(status=CONFIRMED, tx_hash=0x...)
-
-[8] BROADCAST    WebSocket  ──► dashboard shows reasoning + trade in real time
-```
-
----
-
-## Why 3 agents instead of 1
-
-| | Single agent | 3-agent pipeline |
-|---|---|---|
-| Decision quality | Reason across all concerns at once | Each agent focuses on one job |
-| Guardrail safety | Easy to skip in complex reasoning | Risk Officer has no execution tools — cannot trade |
-| Explainability | One blob of reasoning | 3 separate, readable reasoning chains |
-| Demo value | "it traded" | Watch analyst → PM → risk officer think out loud |
-| Hackathon fit | Automated bot | Actual multi-agent system |
+- **KPI row** — net worth (BNB/token split), total PnL, realized PnL + win rate, drawdown vs cap
+- **Agent Pipeline** — Analyst → PM → Risk thinking in real time; click any agent for full reasoning
+- **Positions** — open/closed tabs, live unrealized PnL, exit reasons
+- **Decision History & Trade Log** — every decision and on-chain trade; click any row for the
+  full Analyst→PM→Risk decision chain (tx links to BscScan)
 
 ---
 
 ## Repo structure
 
 ```
-bnb-agent/
-├── agent/                  # Node.js agent — runs on VPS
+bnb-hackathon/
+├── agent/                       # Node 24 agent — Dockerised on Railway
 │   ├── src/
-│   │   ├── agents/         # 3 Claude agents + orchestrator
-│   │   │   ├── orchestrator.ts
-│   │   │   ├── analyst.ts
+│   │   ├── agents/
+│   │   │   ├── orchestrator.ts   # chains scorer → 3 agents → gates → execute
+│   │   │   ├── analyst.ts        # CMC MCP market read
 │   │   │   ├── portfolioManager.ts
-│   │   │   └── riskOfficer.ts
-│   │   ├── signals/        # CMC tools (used by analyst agent)
-│   │   ├── guardrails/     # Rules injected into risk officer context
-│   │   ├── execution/      # TWAK CLI: local signing + BSC tx submission
-│   │   ├── db/             # SQLite: trades, PnL snapshots, signal log
-│   │   └── api/            # Express REST + WebSocket server
-│   ├── .env.example        # Credential template (copy to .env)
-│   └── package.json
-├── web/                    # Next.js dashboard — deployed on Vercel
-│   ├── app/
-│   │   ├── components/     # StatusBar, PnlChart, SignalFeed, TradeLog
-│   │   │                   # TradeLog shows per-agent reasoning
-│   │   ├── hooks/          # useAgent — WebSocket + REST data hook
-│   │   └── page.tsx        # Main dashboard
-│   └── package.json
-└── package.json            # npm workspaces root
+│   │   │   ├── riskOfficer.ts
+│   │   │   ├── exitManager.ts    # deterministic TP/SL/trailing/time-stop (no LLM)
+│   │   │   └── base.ts           # Anthropic tool-use loop + prompt caching
+│   │   ├── signals/              # cmc.ts (REST), cmcMcp.ts (MCP), score.ts (ranking)
+│   │   ├── guardrails/           # drawdown, gas reserve, windows, daily limit, allowlist
+│   │   ├── execution/            # TWAK CLI wrapper, tokens.ts, networth.ts (on-chain)
+│   │   ├── db/                   # driver.ts (PG/SQLite), schema.ts, queries.ts
+│   │   └── api/                  # Express REST + WebSocket
+│   ├── deploy/                   # RAILWAY.md, Dockerfile entrypoint, env template
+│   ├── Dockerfile · railway.json
+│   └── ecosystem… (n/a — Railway)
+├── web/                          # Next.js dashboard (Vercel)
+│   └── app/components/           # Header, KpiRow, AgentPipeline, Positions,
+│                                 # DecisionChainModal, TradeLog, SignalFeed, PnlChart
+└── SUBMISSION.md                 # hackathon submission write-up
 ```
 
 ---
 
-## Key design decisions
+## Configuration
 
-| Decision | Why |
+All tunable via env (see `agent/deploy/.env.production.example`):
+
+| Group | Vars |
 |---|---|
-| 3 role-based agents | Mirrors real trading desk structure. Each agent has a narrow job — Analyst can't trade, Risk Officer has no tools. Cleaner reasoning, safer execution. |
-| Raw Anthropic SDK, no framework | Full control over the agent loop. Guardrails inject before every TWAK call — one obvious place, impossible to bypass. No hidden LangChain abstraction breaking at 2am. |
-| WebSocket push | Dashboard stays live during trading week. Judges see all 3 agents reasoning in real time during the demo. |
-| Cron every 5 min | Frequent enough to catch regime shifts, infrequent enough to stay under CMC rate limits. |
+| Secrets | `ANTHROPIC_API_KEY`, `CMC_API_KEY`, `TWAK_ACCESS_ID/HMAC_SECRET/WALLET_PASSWORD`, `AGENT_ID` |
+| Database | `DATABASE_URL` (Postgres; unset → local SQLite) |
+| Sizing | `TRADE_PCT`, `MAX_TRADE_SIZE_BNB`, `MAX_OPEN_POSITIONS`, `TARGET_POSITION_PCT` |
+| Risk | `STOP_LOSS_PCT`, `TRAIL_ACTIVATE_PCT`, `TRAIL_PCT`, `MAX_HOLD_HOURS`, `DRAWDOWN_CAP`, `GAS_RESERVE_USD` |
+| Gating | `TRADING_WINDOWS`, `DAILY_TRADE_LIMIT`, `DAILY_MIN_CUTOFF_HOUR`, `REQUIRE_HIGH_CONFIDENCE`, `SCORING_ENABLED` |
 
 ---
 
+## Running it
+
+**Local (SQLite, zero-config DB):**
+```bash
+pnpm install
+# agent/.env from agent/deploy/.env.production.example (omit DATABASE_URL → SQLite)
+pnpm dev:agent      # agent + API on :3001
+pnpm dev:web        # dashboard on :3000
+```
+
+**Production:** Docker on Railway with a Postgres service + a volume for the wallet.
+Full walkthrough in [`agent/deploy/RAILWAY.md`](agent/deploy/RAILWAY.md).
+
+---
+
+## Why a 3-agent pipeline + deterministic rails
+
+| | Single LLM | This design |
+|---|---|---|
+| Decision quality | one blob of reasoning | quant scorer ranks → Analyst → PM → adversarial Risk Officer |
+| Capital safety | model can skip its own rules | TP/SL/trailing/drawdown are deterministic — the LLM can't override them |
+| Reliability | breaks if the API hiccups | exits run LLM-free, 24/7 |
+| Transparency | opaque | every decision + trade is logged and inspectable live |
+| Self-custody | usually plumbing | TWAK is the whole execution layer; keys never leave the wallet |
