@@ -16,8 +16,11 @@ executable liquidity and will be rejected): ${TRADEABLE_TOKENS.join(', ')}.
 Position discipline:
 - Take-profit and stop-loss are handled automatically — do NOT propose exits just to lock small gains.
 - Only propose a SELL if the thesis has clearly broken (signal reversal), even if TP/SL not yet hit.
-- Do NOT propose a BUY for a token you already hold (no pyramiding). Choose a different token or HOLD.
-- If your top pick is already held, rotate to the next-best tradeable token rather than defaulting to HOLD.
+- Each open position is tagged by size: OK (well-sized), UNDERSIZED (below target weight), DUST (negligible).
+- TOP-UP: you MAY propose a BUY of a token you already hold ONLY if it is UNDERSIZED/DUST and you still
+  have HIGH conviction — this averages into the position toward target weight. Never add to an OK-sized position.
+- CLEAN UP: if you hold a DUST position you have low/no conviction in, propose a SELL to free the slot.
+- If your top pick is already held at OK size, rotate to the next-best tradeable token or HOLD.
 - Reserve confidence "HIGH" for genuine signal confluence (TA + sentiment + narrative align). Most ticks should be MEDIUM/LOW or HOLD. Only HIGH-confidence BUYs get executed.
 
 Respond ONLY with a JSON object — no markdown, no explanation outside the JSON:
@@ -57,6 +60,9 @@ export type OpenPositionSummary = {
   entryPriceUsd: number;
   currentPriceUsd: number;
   unrealizedPnlPct: number;
+  valueUsd: number;
+  pctOfPortfolio: number;      // 0–1
+  sizeTag: 'DUST' | 'UNDERSIZED' | 'OK';
 };
 
 export async function runPortfolioManager(
@@ -85,7 +91,9 @@ export async function runPortfolioManager(
 
   const positionsBlock = openPositions.length > 0
     ? openPositions.map(p =>
-        `- ${p.token}: ${p.bnbSpent.toFixed(4)} BNB in @ $${p.entryPriceUsd.toPrecision(4)}, now $${p.currentPriceUsd.toPrecision(4)} (${p.unrealizedPnlPct >= 0 ? '+' : ''}${(p.unrealizedPnlPct * 100).toFixed(2)}% unrealized)`
+        `- ${p.token} [${p.sizeTag}]: $${p.valueUsd.toFixed(2)} (${(p.pctOfPortfolio * 100).toFixed(1)}% of portfolio), ` +
+        `${p.bnbSpent.toFixed(4)} BNB in @ $${p.entryPriceUsd.toPrecision(4)}, now $${p.currentPriceUsd.toPrecision(4)} ` +
+        `(${p.unrealizedPnlPct >= 0 ? '+' : ''}${(p.unrealizedPnlPct * 100).toFixed(2)}% unrealized)`
       ).join('\n')
     : '- None — all in BNB';
 

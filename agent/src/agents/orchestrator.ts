@@ -6,7 +6,7 @@ import { AgentRunResult, MarketBrief, TradeProposal } from './types';
 import { executeTrade } from '../execution';
 import {
   insertTrade, updateTradeStatus, insertSignalLog, insertAgentRun,
-  openPosition, closePosition, getOpenPositionByToken,
+  openPosition, closePosition, getOpenPositionByToken, updatePositionSize,
 } from '../db/queries';
 import { recordTrade, getDailyTradeCount, checkTradingWindow, isInTradingWindow, checkGasReserve } from '../guardrails';
 import { getTokenPrices } from '../signals/cmc';
@@ -20,12 +20,25 @@ const SCORING_ENABLED = (process.env.SCORING_ENABLED ?? 'true') === 'true';
 
 // Conviction sizing: size a BUY by the PM's confidence instead of a hard HIGH-only
 // gate. HIGH → full size, MEDIUM → reduced, LOW → skipped (0). When enabled this
-// supersedes REQUIRE_HIGH_CONFIDENCE. Disable to revert to strict HIGH-only.
-const CONVICTION_SIZING = (process.env.CONVICTION_SIZING ?? 'true') === 'true';
+// supersedes REQUIRE_HIGH_CONFIDENCE. Default OFF → only HIGH-confidence buys execute.
+const CONVICTION_SIZING = (process.env.CONVICTION_SIZING ?? 'false') === 'true';
 const CONF_MEDIUM_MULT  = parseFloat(process.env.CONF_MEDIUM_MULT ?? '0.5');
 const CONF_LOW_MULT     = parseFloat(process.env.CONF_LOW_MULT ?? '0');
 // Default token for a forced daily-minimum trade when the PM proposes HOLD.
 const DAILY_MIN_TOKEN   = (process.env.DAILY_MIN_TOKEN ?? 'ETH').toUpperCase();
+// Cap concurrent open positions to avoid over-accumulation (esp. in a bear regime).
+const MAX_OPEN_POSITIONS = parseInt(process.env.MAX_OPEN_POSITIONS ?? '8');
+// Position sizing targets (as a fraction of total portfolio value).
+const TARGET_POSITION_PCT = parseFloat(process.env.TARGET_POSITION_PCT ?? '0.10'); // aim ~10% per position
+const UNDERSIZED_PCT      = parseFloat(process.env.UNDERSIZED_PCT ?? '0.05');       // below 5% → can top up
+const DUST_PCT            = parseFloat(process.env.DUST_PCT ?? '0.02');             // below 2% → dust / cleanup
+const TOPUP_ENABLED       = (process.env.TOPUP_ENABLED ?? 'true') === 'true';       // allow averaging into undersized
+
+function sizeTag(pct: number): 'DUST' | 'UNDERSIZED' | 'OK' {
+  if (pct < DUST_PCT) return 'DUST';
+  if (pct < UNDERSIZED_PCT) return 'UNDERSIZED';
+  return 'OK';
+}
 
 function confidenceMult(confidence: string): number {
   if (confidence === 'HIGH') return 1;
@@ -236,13 +249,20 @@ export async function runOrchestrator(state: {
 
   // ── Agent 2: Portfolio Manager (position-aware) ──────────────────────────────
   const enriched = await getOpenPositionsWithPnl();
-  const openSummaries: OpenPositionSummary[] = enriched.map(e => ({
-    token: e.position.token,
-    bnbSpent: e.position.bnb_spent,
-    entryPriceUsd: e.position.entry_price_usd,
-    currentPriceUsd: e.currentPrice,
-    unrealizedPnlPct: e.pnlPct,
-  }));
+  const openSummaries: OpenPositionSummary[] = enriched.map(e => {
+    const valueUsd = e.position.amount_token * e.currentPrice;
+    const pctOfPortfolio = state.portfolioUsd > 0 ? valueUsd / state.portfolioUsd : 0;
+    return {
+      token: e.position.token,
+      bnbSpent: e.position.bnb_spent,
+      entryPriceUsd: e.position.entry_price_usd,
+      currentPriceUsd: e.currentPrice,
+      unrealizedPnlPct: e.pnlPct,
+      valueUsd,
+      pctOfPortfolio,
+      sizeTag: sizeTag(pctOfPortfolio),
+    };
+  });
 
   // Deterministic signal ranking — grounds the PM's pick in quant signals (advisory).
   let scoreContext = '';
@@ -312,9 +332,21 @@ export async function runOrchestrator(state: {
     return holdResult(reason);
   }
 
-  // No pyramiding — refuse to add to an existing open position.
-  if (isBuy && await getOpenPositionByToken(proposal.token)) {
-    const reason = `Already holding ${proposal.token} — no pyramiding.`;
+  // Max-open-positions cap — avoid over-accumulation. Forced (daily-minimum) runs
+  // bypass it so the ≥1-trade/day requirement is never blocked.
+  if (isBuy && !force && openSummaries.length >= MAX_OPEN_POSITIONS) {
+    const reason = `Max open positions (${MAX_OPEN_POSITIONS}) reached — no new entry.`;
+    console.log(`[orchestrator] SKIP: ${reason}`);
+    await recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
+    return holdResult(reason);
+  }
+
+  // Pyramiding rule: adding to a held token is allowed ONLY as a top-up of an
+  // UNDERSIZED/DUST position (below target weight) when TOPUP_ENABLED. An already
+  // well-sized (OK) position is never added to.
+  const heldSummary = isBuy ? openSummaries.find(s => s.token.toUpperCase() === proposal.token.toUpperCase()) : undefined;
+  if (heldSummary && (!TOPUP_ENABLED || heldSummary.pctOfPortfolio >= TARGET_POSITION_PCT)) {
+    const reason = `Already holding ${proposal.token} at ${(heldSummary.pctOfPortfolio * 100).toFixed(1)}% (target ${(TARGET_POSITION_PCT * 100).toFixed(0)}%) — no pyramiding.`;
     console.log(`[orchestrator] SKIP: ${reason}`);
     await recordRun({ action: 'SKIPPED', token: proposal.token, marketBrief, pmReasoning: proposal.reasoning, riskReasoning: reason, tradeId: null });
     return holdResult(reason);
@@ -417,11 +449,22 @@ export async function runOrchestrator(state: {
   // Position bookkeeping.
   if (result.status === 'CONFIRMED') {
     if (side === 'BUY' && pricing) {
-      await openPosition({
-        token: trade.token, bnb_spent: trade.amountBnb, amount_token: pricing.amountToken,
-        entry_price_usd: pricing.tokenPriceUsd, opened_at: Date.now(), open_trade_id: tradeId,
-      });
-      console.log(`[orchestrator] opened position: ${trade.token} ${pricing.amountToken.toPrecision(4)} @ $${pricing.tokenPriceUsd.toPrecision(4)}`);
+      const existing = await getOpenPositionByToken(trade.token);
+      if (existing) {
+        // Top-up: average into the existing position (new weighted entry price).
+        const newAmount = existing.amount_token + pricing.amountToken;
+        const newEntry = newAmount > 0
+          ? (existing.amount_token * existing.entry_price_usd + pricing.amountToken * pricing.tokenPriceUsd) / newAmount
+          : pricing.tokenPriceUsd;
+        await updatePositionSize(existing.id, existing.bnb_spent + trade.amountBnb, newAmount, newEntry);
+        console.log(`[orchestrator] topped up ${trade.token}: +${pricing.amountToken.toPrecision(4)} → avg entry $${newEntry.toPrecision(4)}`);
+      } else {
+        await openPosition({
+          token: trade.token, bnb_spent: trade.amountBnb, amount_token: pricing.amountToken,
+          entry_price_usd: pricing.tokenPriceUsd, opened_at: Date.now(), open_trade_id: tradeId,
+        });
+        console.log(`[orchestrator] opened position: ${trade.token} ${pricing.amountToken.toPrecision(4)} @ $${pricing.tokenPriceUsd.toPrecision(4)}`);
+      }
     } else if (side === 'SELL' && heldPosition) {
       const exitPrice = (await entryPricing(trade.token, 0))?.tokenPriceUsd ?? heldPosition.entry_price_usd;
       const pnlPct = (exitPrice - heldPosition.entry_price_usd) / heldPosition.entry_price_usd;

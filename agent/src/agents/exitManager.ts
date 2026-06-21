@@ -14,8 +14,10 @@ const MAX_HOLD_HOURS  = parseFloat(process.env.MAX_HOLD_HOURS  ?? '48');    // t
 // Trailing stop: once a position is up TRAIL_ACTIVATE_PCT, replace the fixed TP
 // with a stop that trails TRAIL_PCT below the peak — let winners run, lock gains.
 const TRAILING_ENABLED      = (process.env.TRAILING_ENABLED ?? 'true') === 'true';
-const TRAIL_ACTIVATE_PCT    = parseFloat(process.env.TRAIL_ACTIVATE_PCT ?? '0.04'); // arm at +4%
-const TRAIL_PCT             = parseFloat(process.env.TRAIL_PCT ?? '0.025');          // give back 2.5%
+// Arm at +3%, trail 2% below the peak. Arm > trail, so once armed the exit floor
+// is already in profit (~+1%); a runner to +10% locks in ~+8%.
+const TRAIL_ACTIVATE_PCT    = parseFloat(process.env.TRAIL_ACTIVATE_PCT ?? '0.03'); // arm at +3%
+const TRAIL_PCT             = parseFloat(process.env.TRAIL_PCT ?? '0.02');           // give back 2%
 
 // A single-reading move larger than this (vs the previous reading) is treated as
 // a suspect/bad price tick and not acted on until the next reading confirms it.

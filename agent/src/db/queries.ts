@@ -106,6 +106,16 @@ export async function updatePositionPeak(id: number, price: number): Promise<voi
   await dbRun(`UPDATE positions SET peak_price_usd = ? WHERE id = ? AND ? > peak_price_usd`, [price, id, price]);
 }
 
+// Top-up: overwrite size + (weighted-average) entry of an existing open position.
+export async function updatePositionSize(
+  id: number, bnb_spent: number, amount_token: number, entry_price_usd: number,
+): Promise<void> {
+  await dbRun(
+    `UPDATE positions SET bnb_spent = ?, amount_token = ?, entry_price_usd = ? WHERE id = ?`,
+    [bnb_spent, amount_token, entry_price_usd, id],
+  );
+}
+
 export async function closePosition(id: number, c: {
   closed_at: number;
   exit_price_usd: number;
